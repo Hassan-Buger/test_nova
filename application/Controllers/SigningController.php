@@ -9,6 +9,7 @@ use Application\Core\Response;
 use Application\Models\SignatureAuditEvent;
 use Application\Models\SignatureRequest;
 use Application\Models\SignatureSigner;
+use Application\Services\FileStorageService;
 use Application\Services\SignatureService;
 use Exception;
 use Throwable;
@@ -182,10 +183,15 @@ class SigningController extends Controller
             ? $sigRequest['signed_filename'] 
             : $sigRequest['original_filename'];
 
-        $fullPath = App::get('storage_dir') . '/uploads/' . $storedPath;
+        $fullPath = FileStorageService::resolvePath((string)$storedPath, (string)$filename);
         if (!is_file($fullPath)) {
             $response->setStatusCode(404);
-            die('File artifact missing from storage.');
+            $this->render('signing/error', [
+                'pageTitle' => 'Document Unavailable',
+                'message'   => 'The requested document copy could not be located in storage.',
+                'code'      => 404,
+            ], 'clean');
+            return;
         }
 
         $safeFilename = str_replace(['"', "\r", "\n"], '', basename((string)$filename));
@@ -205,13 +211,23 @@ class SigningController extends Controller
         $signer = (new SignatureSigner())->findByToken($token);
         if (!$signer) {
             $response->setStatusCode(404);
-            die('Invalid signature link.');
+            $this->render('signing/error', [
+                'pageTitle' => 'Link Invalid',
+                'message'   => 'Invalid or non-existent signature link.',
+                'code'      => 404,
+            ], 'clean');
+            return;
         }
 
         $sigRequest = (new SignatureRequest())->find((int)$signer['request_id']);
         if (!$sigRequest) {
             $response->setStatusCode(404);
-            die('Document request not found.');
+            $this->render('signing/error', [
+                'pageTitle' => 'Document Not Found',
+                'message'   => 'The associated document request is no longer available.',
+                'code'      => 404,
+            ], 'clean');
+            return;
         }
 
         $storedPath = (!empty($sigRequest['signed_stored_path'])) 
@@ -222,10 +238,15 @@ class SigningController extends Controller
             ? $sigRequest['signed_filename'] 
             : $sigRequest['original_filename'];
 
-        $fullPath = App::get('storage_dir') . '/uploads/' . $storedPath;
+        $fullPath = FileStorageService::resolvePath((string)$storedPath, (string)$filename);
         if (!is_file($fullPath)) {
             $response->setStatusCode(404);
-            die('File artifact missing from storage.');
+            $this->render('signing/error', [
+                'pageTitle' => 'Document Unavailable',
+                'message'   => 'The requested document could not be loaded for viewing.',
+                'code'      => 404,
+            ], 'clean');
+            return;
         }
 
         $safeFilename = str_replace(['"', "\r", "\n"], '', basename((string)$filename));

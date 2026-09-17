@@ -46,7 +46,7 @@ class SignatureSealerService
             ];
         }
 
-        $originalFilePath = App::get('storage_dir') . '/uploads/' . $request['original_stored_path'];
+        $originalFilePath = FileStorageService::resolvePath($request['original_stored_path'], $request['original_filename'] ?? '');
         if (!is_file($originalFilePath)) {
             throw new Exception("Original document artifact missing from storage: {$request['original_stored_path']}");
         }

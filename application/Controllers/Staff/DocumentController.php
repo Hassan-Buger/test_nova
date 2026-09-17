@@ -139,7 +139,7 @@ class DocumentController extends Controller
             die('Document Not Found.');
         }
 
-        $filePath = App::get('storage_dir') . '/uploads/' . $doc['stored_path'];
+        $filePath = FileStorageService::resolvePath((string)$doc['stored_path'], (string)$doc['filename']);
         if (!file_exists($filePath)) {
             $response->setStatusCode(404);
             die('File artifact missing from storage directory.');

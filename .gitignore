@@ -3,6 +3,8 @@
 .env
 storage/uploads/*
 !storage/uploads/.htaccess
+!storage/uploads/draft_accounts_2025_hash.pdf
+!storage/uploads/vat_return_q2_hash.pdf
 storage/logs/*
 !storage/logs/.htaccess
 .DS_Store

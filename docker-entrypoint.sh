@@ -45,6 +45,9 @@ a2ensite 000-default 2>/dev/null || true
 
 # Ensure storage directories exist and are writable
 mkdir -p /var/www/html/storage/uploads
+if [ -d /var/www/html/storage/seeds ]; then
+    cp -n /var/www/html/storage/seeds/* /var/www/html/storage/uploads/ 2>/dev/null || true
+fi
 chown -R www-data:www-data /var/www/html/storage
 chmod -R 775 /var/www/html/storage
 

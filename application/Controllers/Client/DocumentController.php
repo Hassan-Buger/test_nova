@@ -228,7 +228,7 @@ class DocumentController extends Controller
             return;
         }
 
-        $filePath = App::get('storage_dir') . '/uploads/' . $doc['stored_path'];
+        $filePath = FileStorageService::resolvePath((string)$doc['stored_path'], (string)$doc['filename']);
         if (!is_file($filePath)) {
             $response->json(['success' => false, 'message' => 'This file is unavailable because it is missing from secure storage. Please upload it again or contact an administrator.'], 404);
             return;
@@ -252,7 +252,7 @@ class DocumentController extends Controller
             die('Access Denied: You do not have permission to access this document.');
         }
 
-        $filePath = App::get('storage_dir') . '/uploads/' . $doc['stored_path'];
+        $filePath = FileStorageService::resolvePath((string)$doc['stored_path'], (string)$doc['filename']);
         if (!is_file($filePath)) {
             $response->setStatusCode(404);
             die('File artifact missing from storage directory.');

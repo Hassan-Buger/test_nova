@@ -76,6 +76,23 @@ try {
     } else {
         echo "[TriNova] Notice: Database check finished with warnings.\n";
     }
+
+    // Ensure seed artifacts exist in storage/uploads
+    $storageDir = $appDir . '/storage';
+    $seedsDir = $storageDir . '/seeds';
+    $uploadsDir = $storageDir . '/uploads';
+    if (!is_dir($uploadsDir)) {
+        @mkdir($uploadsDir, 0775, true);
+    }
+    if (is_dir($seedsDir)) {
+        foreach (glob($seedsDir . '/*') as $seedFile) {
+            $dest = $uploadsDir . '/' . basename($seedFile);
+            if (!file_exists($dest)) {
+                @copy($seedFile, $dest);
+            }
+        }
+        echo "[TriNova] Seed document artifacts verified in storage/uploads.\n";
+    }
 } catch (PDOException $e) {
     echo "[TriNova] Database not reachable yet: " . $e->getMessage() . "\n";
 }
