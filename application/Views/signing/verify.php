@@ -115,7 +115,7 @@
                     <div class="w-2.5 h-2.5 rounded-full bg-teal-600 mt-2 shrink-0"></div>
                     <div class="flex-1">
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                            <span class="font-bold text-sm text-slate-800"><?= htmlspecialchars($e['description']) ?></span>
+                            <span class="font-bold text-sm text-slate-800"><?= htmlspecialchars($e['event_description'] ?? $e['description'] ?? '') ?></span>
                             <span class="text-xs text-slate-400 font-mono"><?= date('d M Y, H:i:s T', strtotime($e['created_at'])) ?></span>
                         </div>
                         <div class="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-4 gap-y-1">

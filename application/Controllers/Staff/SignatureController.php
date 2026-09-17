@@ -47,7 +47,7 @@ class SignatureController extends Controller
         ];
 
         $result = $this->sigReqModel->paginateWithDetails($filters, $page, 15);
-        $clients = (new Client())->getAllWithDetails();
+        $clients = (new Client())->getAllWithUsers();
 
         $this->render('staff/signatures/index', [
             'pageTitle' => 'Digital Signatures',
@@ -107,7 +107,7 @@ class SignatureController extends Controller
             return strtolower(pathinfo((string)$d['filename'], PATHINFO_EXTENSION)) === 'pdf';
         });
 
-        $clients = (new Client())->getAllWithDetails();
+        $clients = (new Client())->getAllWithUsers();
 
         $this->render('staff/signatures/create', [
             'pageTitle'        => 'Request Digital Signature',

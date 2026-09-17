@@ -146,7 +146,7 @@
                     <div style="width:8px;height:8px;border-radius:999px;background:#0d9488;margin-top:6px;flex-shrink:0"></div>
                     <div style="flex:1">
                         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-                            <span style="font-weight:700;font-size:13.5px;color:#1e293b"><?= htmlspecialchars($e['description']) ?></span>
+                            <span style="font-weight:700;font-size:13.5px;color:#1e293b"><?= htmlspecialchars($e['event_description'] ?? $e['description'] ?? '') ?></span>
                             <span style="font-size:12px;color:#94a3b8;font-family:monospace"><?= date('d M Y, H:i:s', strtotime($e['created_at'])) ?></span>
                         </div>
                         <div style="font-size:12px;color:#64748b;margin-top:2px">

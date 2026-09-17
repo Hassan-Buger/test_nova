@@ -46,6 +46,11 @@ class Client extends Model
         return $stmt->fetchAll();
     }
 
+    public function getAllWithDetails(): array
+    {
+        return $this->getAllWithUsers();
+    }
+
     public function paginate(string $search = '', int $page = 1, int $perPage = 10): array
     {
         $page = max(1, $page);

@@ -18,15 +18,16 @@ class SignatureRequest extends Model
             SELECT sr.*, 
                    d.filename AS original_filename, d.stored_path AS original_stored_path,
                    sd.filename AS signed_filename, sd.stored_path AS signed_stored_path,
-                   c.name AS client_name, c.company_name AS client_company,
+                   cu.name AS client_name,
                    ce.company_name AS entity_name, ce.entity_scope,
                    u.name AS creator_name, u.email AS creator_email
             FROM signature_requests sr
             JOIN documents d ON d.id = sr.document_id
             LEFT JOIN documents sd ON sd.id = sr.signed_document_id
-            JOIN clients c ON c.id = sr.client_id
+            LEFT JOIN clients c ON c.id = sr.client_id
+            LEFT JOIN users cu ON cu.id = c.user_id
             LEFT JOIN client_entities ce ON ce.id = sr.entity_id
-            JOIN users u ON u.id = sr.created_by_user_id
+            LEFT JOIN users u ON u.id = sr.created_by_user_id
             WHERE sr.id = :id AND sr.deleted_at IS NULL
             LIMIT 1
         ");
@@ -40,15 +41,16 @@ class SignatureRequest extends Model
             SELECT sr.*, 
                    d.filename AS original_filename,
                    sd.filename AS signed_filename, sd.stored_path AS signed_stored_path,
-                   c.name AS client_name,
+                   cu.name AS client_name,
                    ce.company_name AS entity_name,
                    u.name AS creator_name
             FROM signature_requests sr
             JOIN documents d ON d.id = sr.document_id
             LEFT JOIN documents sd ON sd.id = sr.signed_document_id
-            JOIN clients c ON c.id = sr.client_id
+            LEFT JOIN clients c ON c.id = sr.client_id
+            LEFT JOIN users cu ON cu.id = c.user_id
             LEFT JOIN client_entities ce ON ce.id = sr.entity_id
-            JOIN users u ON u.id = sr.created_by_user_id
+            LEFT JOIN users u ON u.id = sr.created_by_user_id
             WHERE sr.qr_token = :qr_token AND sr.deleted_at IS NULL
             LIMIT 1
         ");
@@ -124,7 +126,7 @@ class SignatureRequest extends Model
 
         $search = trim((string)($filters['search'] ?? ''));
         if ($search !== '') {
-            $where[] = '(sr.title LIKE :search_title OR d.filename LIKE :search_file OR c.name LIKE :search_client OR ce.company_name LIKE :search_entity)';
+            $where[] = '(sr.title LIKE :search_title OR d.filename LIKE :search_file OR cu.name LIKE :search_client OR ce.company_name LIKE :search_entity)';
             $like = '%' . $search . '%';
             $params['search_title'] = $like;
             $params['search_file'] = $like;
@@ -151,9 +153,10 @@ class SignatureRequest extends Model
         $joins = "
             JOIN documents d ON d.id = sr.document_id
             LEFT JOIN documents sd ON sd.id = sr.signed_document_id
-            JOIN clients c ON c.id = sr.client_id
+            LEFT JOIN clients c ON c.id = sr.client_id
+            LEFT JOIN users cu ON cu.id = c.user_id
             LEFT JOIN client_entities ce ON ce.id = sr.entity_id
-            JOIN users u ON u.id = sr.created_by_user_id
+            LEFT JOIN users u ON u.id = sr.created_by_user_id
         ";
 
         $countStmt = $this->db->prepare("SELECT COUNT(*) FROM signature_requests sr {$joins} {$whereSql}");
@@ -167,7 +170,7 @@ class SignatureRequest extends Model
             SELECT sr.*, 
                    d.filename AS original_filename,
                    sd.filename AS signed_filename, sd.stored_path AS signed_stored_path,
-                   c.name AS client_name,
+                   cu.name AS client_name,
                    ce.company_name AS entity_name,
                    u.name AS creator_name,
                    (SELECT COUNT(*) FROM signature_signers ss WHERE ss.request_id = sr.id) AS total_signers,
