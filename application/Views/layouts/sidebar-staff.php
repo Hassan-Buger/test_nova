@@ -4,6 +4,7 @@ $nav = [
     ['href' => '/staff/dashboard', 'label' => 'Dashboard', 'icon' => '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>'],
     ['href' => '/staff/clients', 'label' => 'Clients', 'icon' => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'],
     ['href' => '/staff/documents', 'label' => 'Documents', 'icon' => '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M9 14h6M9 18h4"/>'],
+    ['href' => '/staff/signatures', 'label' => 'Signatures', 'icon' => '<path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>'],
     ['href' => '/staff/messages', 'label' => 'Messages', 'icon' => '<path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><path d="M8 8h8M8 12h5"/>'],
     ['href' => '/staff/requests', 'label' => 'Requests', 'icon' => '<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/>'],
     ['href' => '/staff/deadlines', 'label' => 'Deadlines', 'icon' => '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>'],
@@ -24,7 +25,7 @@ $nav = [
         <?php foreach ($nav as $index => $item): ?>
             <?php
             $active = $currentPath === $item['href'] || ($item['href'] !== '/staff/dashboard' && str_starts_with($currentPath, $item['href'] . '/'));
-            $isAdministration = $index === 6;
+            $isAdministration = $index === 7;
             ?>
             <?php if ($isAdministration): ?><span class="staff-sidebar__section tn-navlabel">Administration</span><?php endif; ?>
             <a href="<?= htmlspecialchars($item['href']) ?>" class="tn-navitem<?= $active ? ' is-active' : '' ?>" title="<?= htmlspecialchars($item['label']) ?>"<?= $active ? ' aria-current="page"' : '' ?>>

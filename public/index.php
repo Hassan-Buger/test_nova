@@ -66,6 +66,9 @@ use Application\Controllers\Staff\DeadlineController as StaffDeadlineController;
 use Application\Controllers\Staff\UserAdminController as StaffUserAdminController;
 use Application\Controllers\Staff\AuditController as StaffAuditController;
 use Application\Controllers\Staff\TrashController as StaffTrashController;
+use Application\Controllers\Staff\SignatureController as StaffSignatureController;
+use Application\Controllers\Client\SignatureController as ClientSignatureController;
+use Application\Controllers\SigningController;
 use Application\Controllers\NotificationController;
 
 // Simple dotenv loader fallback for environment variables
@@ -109,12 +112,22 @@ $app->router->post('/notifications/read-all', [NotificationController::class, 'r
 $app->router->get('/api/notifications', [NotificationController::class, 'feed'])->middleware([AuthMiddleware::class, SessionTimeoutMiddleware::class]);
 $app->router->post('/api/notifications/mark-as-read', [NotificationController::class, 'read'])->middleware([AuthMiddleware::class, SessionTimeoutMiddleware::class, CsrfMiddleware::class]);
 
+// --- DIGITAL SIGNATURE & VERIFICATION ROUTES (accessible by token) ---
+$app->router->get('/sign/{token}', [SigningController::class, 'showSign']);
+$app->router->get('/sign/{token}/pdf', [SigningController::class, 'streamPdf']);
+$app->router->post('/sign/{token}/submit', [SigningController::class, 'submitSign']);
+$app->router->post('/sign/{token}/decline', [SigningController::class, 'decline']);
+$app->router->get('/sign/{token}/completed', [SigningController::class, 'showCompleted']);
+$app->router->get('/sign/{token}/download', [SigningController::class, 'download']);
+$app->router->get('/verify/signature/{token}', [SigningController::class, 'verify']);
+
 // --- SECURED CLIENT ROUTES ---
 $app->router->group([
     'prefix' => '/client',
     'middleware' => [AuthMiddleware::class, SessionTimeoutMiddleware::class, RoleMiddleware::class . ':client']
 ], function($r) {
     $r->get('/dashboard', [ClientDashboardController::class, 'index']);
+    $r->get('/signatures', [ClientSignatureController::class, 'index']);
     $r->get('/documents/upload', [ClientDocumentController::class, 'showUpload']);
     $r->post('/documents/upload', [ClientDocumentController::class, 'processUpload'])->middleware([CsrfMiddleware::class]);
     $r->get('/documents/my-uploads', [ClientDocumentController::class, 'myUploads']);
@@ -200,6 +213,12 @@ $app->router->group([
     $r->get('/trash', [StaffTrashController::class, 'index']);
     $r->post('/trash/restore', [StaffTrashController::class, 'restore'])->middleware([CsrfMiddleware::class]);
     $r->post('/trash/bulk-restore', [StaffTrashController::class, 'bulkRestore'])->middleware([CsrfMiddleware::class]);
+    $r->get('/signatures', [StaffSignatureController::class, 'index']);
+    $r->get('/signatures/create', [StaffSignatureController::class, 'showCreate']);
+    $r->post('/signatures/create', [StaffSignatureController::class, 'processCreate'])->middleware([CsrfMiddleware::class]);
+    $r->get('/signatures/{id}', [StaffSignatureController::class, 'show']);
+    $r->post('/signatures/cancel', [StaffSignatureController::class, 'cancel'])->middleware([CsrfMiddleware::class]);
+    $r->post('/signatures/resend', [StaffSignatureController::class, 'resend'])->middleware([CsrfMiddleware::class]);
 });
 
 // Security response headers

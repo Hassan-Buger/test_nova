@@ -297,6 +297,105 @@ class SchemaMigrator
             `read_at` DATETIME NULL,
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // signature_requests
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `signature_requests` (
+            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `document_id` INT UNSIGNED NOT NULL,
+            `client_id` INT UNSIGNED NOT NULL,
+            `entity_id` INT UNSIGNED NULL,
+            `created_by_user_id` INT UNSIGNED NOT NULL,
+            `title` VARCHAR(255) NOT NULL,
+            `status` ENUM('draft', 'pending', 'completed', 'declined', 'expired', 'cancelled') NOT NULL DEFAULT 'draft',
+            `signing_order` ENUM('parallel', 'sequential') NOT NULL DEFAULT 'parallel',
+            `signed_document_id` INT UNSIGNED NULL,
+            `qr_token` VARCHAR(64) NULL UNIQUE,
+            `allow_drawn_signature` TINYINT(1) NOT NULL DEFAULT 1,
+            `allow_typed_signature` TINYINT(1) NOT NULL DEFAULT 1,
+            `allow_upload_signature` TINYINT(1) NOT NULL DEFAULT 1,
+            `original_checksum_sha256` VARCHAR(64) NULL,
+            `signed_checksum_sha256` VARCHAR(64) NULL,
+            `expires_at` DATETIME NULL,
+            `completed_at` DATETIME NULL,
+            `declined_at` DATETIME NULL,
+            `decline_reason` TEXT NULL,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            `deleted_at` DATETIME NULL,
+            INDEX `idx_sig_req_status` (`status`),
+            INDEX `idx_sig_req_client` (`client_id`),
+            INDEX `idx_sig_req_entity` (`entity_id`),
+            INDEX `idx_sig_req_doc` (`document_id`),
+            INDEX `idx_sig_req_deleted_at` (`deleted_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // signature_signers
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `signature_signers` (
+            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `request_id` INT UNSIGNED NOT NULL,
+            `user_id` INT UNSIGNED NULL,
+            `name` VARCHAR(255) NOT NULL,
+            `email` VARCHAR(255) NOT NULL,
+            `role` ENUM('signer', 'approver', 'viewer', 'cc') NOT NULL DEFAULT 'signer',
+            `signing_order` INT UNSIGNED NOT NULL DEFAULT 1,
+            `token` VARCHAR(64) NOT NULL UNIQUE,
+            `status` ENUM('pending', 'signed', 'declined', 'expired') NOT NULL DEFAULT 'pending',
+            `read_status` ENUM('not_opened', 'opened') NOT NULL DEFAULT 'not_opened',
+            `sent_at` DATETIME NULL,
+            `opened_at` DATETIME NULL,
+            `signed_at` DATETIME NULL,
+            `declined_at` DATETIME NULL,
+            `decline_reason` TEXT NULL,
+            `ip_address` VARCHAR(45) NULL,
+            `user_agent` VARCHAR(255) NULL,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX `idx_signers_req` (`request_id`),
+            INDEX `idx_signers_token` (`token`),
+            INDEX `idx_signers_email` (`email`),
+            INDEX `idx_signers_status` (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // signature_fields
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `signature_fields` (
+            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `request_id` INT UNSIGNED NOT NULL,
+            `signer_id` INT UNSIGNED NOT NULL,
+            `type` ENUM('signature', 'initials', 'name', 'email', 'date', 'text', 'checkbox') NOT NULL DEFAULT 'signature',
+            `page` INT UNSIGNED NOT NULL DEFAULT 1,
+            `position_x` DECIMAL(6, 3) NOT NULL DEFAULT 0.000,
+            `position_y` DECIMAL(6, 3) NOT NULL DEFAULT 0.000,
+            `width` DECIMAL(6, 3) NOT NULL DEFAULT 20.000,
+            `height` DECIMAL(6, 3) NOT NULL DEFAULT 6.000,
+            `custom_text` TEXT NULL,
+            `signature_data` LONGTEXT NULL,
+            `signature_type` ENUM('drawn', 'typed', 'uploaded') NULL,
+            `required` TINYINT(1) NOT NULL DEFAULT 1,
+            `inserted` TINYINT(1) NOT NULL DEFAULT 0,
+            `signed_at` DATETIME NULL,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX `idx_sig_fields_req` (`request_id`),
+            INDEX `idx_sig_fields_signer` (`signer_id`),
+            INDEX `idx_sig_fields_page` (`page`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // signature_audit_events
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `signature_audit_events` (
+            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `request_id` INT UNSIGNED NOT NULL,
+            `signer_id` INT UNSIGNED NULL,
+            `user_id` INT UNSIGNED NULL,
+            `event_type` VARCHAR(50) NOT NULL,
+            `event_description` TEXT NOT NULL,
+            `metadata` JSON NULL,
+            `ip_address` VARCHAR(45) NULL,
+            `user_agent` VARCHAR(255) NULL,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX `idx_sig_audit_req` (`request_id`),
+            INDEX `idx_sig_audit_type` (`event_type`),
+            INDEX `idx_sig_audit_created` (`created_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     }
 
     private static function ensureColumns(PDO $pdo): void
@@ -305,7 +404,7 @@ class SchemaMigrator
         $tablesWithDeletedAt = [
             'users', 'clients', 'client_entities', 'entity_directors',
             'documents', 'document_requests', 'messages', 'deadlines',
-            'meetings', 'client_csv_imports'
+            'meetings', 'client_csv_imports', 'signature_requests'
         ];
         foreach ($tablesWithDeletedAt as $table) {
             self::addColumnIfMissing($pdo, $table, 'deleted_at', 'DATETIME NULL');

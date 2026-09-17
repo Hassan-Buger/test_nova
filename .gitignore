@@ -7,3 +7,5 @@ storage/logs/*
 !storage/logs/.htaccess
 .DS_Store
 Thumbs.db
+composer.phar
+Documensu/

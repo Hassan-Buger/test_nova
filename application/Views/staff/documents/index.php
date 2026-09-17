@@ -199,6 +199,13 @@
                                     <?php if ($previewable): ?>
                                         <a href="/staff/documents/download/<?= (int)$doc['id'] ?>?preview=1" target="_blank" rel="noopener" data-no-ajax data-document-preview data-document-id="<?= (int)$doc['id'] ?>" style="background:#fff;color:#41556f;border:1px solid #dfe8e4;padding:8px 14px;border-radius:10px;font-weight:700;font-size:13px;display:inline-flex;margin-right:4px">View</a>
                                     <?php endif; ?>
+                                    <?php $isPdf = strtolower(pathinfo((string)$doc['filename'], PATHINFO_EXTENSION)) === 'pdf'; ?>
+                                    <?php if ($isPdf): ?>
+                                        <a href="/staff/signatures/create?document_id=<?= (int)$doc['id'] ?>" style="background:#e6fffa;color:#0d9488;border:1px solid #99f6e4;padding:8px 12px;border-radius:10px;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:4px;margin-right:4px" title="Request Digital Signature">
+                                            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                            Sign
+                                        </a>
+                                    <?php endif; ?>
                                     <a href="/documents/download/<?= $doc['id'] ?>" style="background:#f0f5f3;color:#0d9488;padding:8px 14px;border-radius:10px;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:6px;margin-right:4px">Download</a>
                                     <button type="button" onclick="tnDocDelete(<?= (int)$doc['id'] ?>)" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:8px 12px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer">Delete</button>
                                 </td>

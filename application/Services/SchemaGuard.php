@@ -59,4 +59,18 @@ final class SchemaGuard
     {
         self::assertImportBatchDeletionReady();
     }
+
+    public static function assertSignaturesReady(): void
+    {
+        $db = Database::getInstance();
+        $tables = ['signature_requests', 'signature_signers', 'signature_fields', 'signature_audit_events'];
+        foreach ($tables as $table) {
+            $stmt = $db->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND LOWER(table_name) = '{$table}'");
+            $found = (int)$stmt->fetchColumn();
+            $stmt->closeCursor();
+            if (!$found) {
+                throw new SystemSetupException("Digital Signatures schema migration is incomplete: {$table} is missing.");
+            }
+        }
+    }
 }

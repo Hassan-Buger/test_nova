@@ -4,7 +4,9 @@
     "type": "project",
     "license": "proprietary",
     "require": {
-        "php": ">=8.2"
+        "php": ">=8.2",
+        "setasign/fpdi": "^2.6",
+        "setasign/fpdf": "^1.8"
     },
     "autoload": {
         "psr-4": {
