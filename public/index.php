@@ -73,6 +73,7 @@ use Application\Controllers\NotificationController;
 use Application\Middleware\ApiAuthMiddleware;
 use Application\Controllers\Api\HealthController as ApiHealthController;
 use Application\Controllers\Api\ClientApiController as ApiClientController;
+use Application\Controllers\Api\StatutoryApiController as ApiStatutoryController;
 
 // Simple dotenv loader fallback for environment variables
 $envFile = $basePath . '/.env';
@@ -236,6 +237,10 @@ $app->router->group([
     // Clients & Companies
     $r->get('/clients', [ApiClientController::class, 'index']);
     $r->get('/companies/{id}', [ApiClientController::class, 'show']);
+
+    // Statutory Deadlines & Companies House Reconciliation
+    $r->get('/statutory', [ApiStatutoryController::class, 'index']);
+    $r->post('/statutory/sync', [ApiStatutoryController::class, 'sync']);
 });
 
 // Security response headers

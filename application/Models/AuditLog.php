@@ -55,4 +55,27 @@ class AuditLog extends Model
         $stmt->execute(['user_id' => $userId]);
         return $stmt->fetchAll();
     }
+
+    public function log(
+        ?int $userId,
+        string $actionType,
+        string $targetType,
+        ?int $targetId,
+        ?array $metadata = null,
+        string $ipAddress = '127.0.0.1'
+    ): int {
+        $stmt = $this->db->prepare("
+            INSERT INTO audit_log (user_id, action_type, target_type, target_id, import_metadata, ip_address, created_at)
+            VALUES (:user_id, :action_type, :target_type, :target_id, :metadata, :ip, NOW())
+        ");
+        $stmt->execute([
+            'user_id' => $userId,
+            'action_type' => $actionType,
+            'target_type' => $targetType,
+            'target_id' => $targetId,
+            'metadata' => $metadata !== null ? json_encode($metadata, JSON_UNESCAPED_UNICODE) : null,
+            'ip' => $ipAddress,
+        ]);
+        return (int)$this->db->lastInsertId();
+    }
 }
