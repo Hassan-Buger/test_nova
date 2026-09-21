@@ -72,6 +72,7 @@ use Application\Controllers\SigningController;
 use Application\Controllers\NotificationController;
 use Application\Middleware\ApiAuthMiddleware;
 use Application\Controllers\Api\HealthController as ApiHealthController;
+use Application\Controllers\Api\ClientApiController as ApiClientController;
 
 // Simple dotenv loader fallback for environment variables
 $envFile = $basePath . '/.env';
@@ -231,6 +232,10 @@ $app->router->group([
     // Health & Auth Diagnostics
     $r->get('/health', [ApiHealthController::class, 'health']);
     $r->get('/auth/verify', [ApiHealthController::class, 'verify']);
+
+    // Clients & Companies
+    $r->get('/clients', [ApiClientController::class, 'index']);
+    $r->get('/companies/{id}', [ApiClientController::class, 'show']);
 });
 
 // Security response headers
