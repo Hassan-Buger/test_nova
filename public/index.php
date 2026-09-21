@@ -75,6 +75,7 @@ use Application\Controllers\Api\HealthController as ApiHealthController;
 use Application\Controllers\Api\ClientApiController as ApiClientController;
 use Application\Controllers\Api\StatutoryApiController as ApiStatutoryController;
 use Application\Controllers\Api\NoteApiController as ApiNoteController;
+use Application\Controllers\Api\DocumentApiController as ApiDocumentController;
 
 // Simple dotenv loader fallback for environment variables
 $envFile = $basePath . '/.env';
@@ -245,6 +246,11 @@ $app->router->group([
 
     // Internal Notes (with Strict Privacy Boundary & Idempotency)
     $r->post('/companies/{id}/notes', [ApiNoteController::class, 'create']);
+
+    // Documents & Signed Download URLs
+    $r->get('/companies/{id}/documents', [ApiDocumentController::class, 'listByCompany']);
+    $r->post('/documents/{id}/access-token', [ApiDocumentController::class, 'generateAccessToken']);
+    $r->get('/documents/download', [ApiDocumentController::class, 'download']);
 });
 
 // Security response headers
