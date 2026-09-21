@@ -16,6 +16,19 @@ final class ErrorHandler
     public static function handle(\Throwable $error,Request $request,Response $response): void
     {
         self::report($error,$request);
+        if (str_starts_with($request->getUri(), '/api/v1')) {
+            header('Access-Control-Allow-Origin: *');
+            header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');
+            header('Access-Control-Allow-Headers: Content-Type, Authorization, Idempotency-Key, If-Match');
+            $response->json([
+                'status' => 'error',
+                'error' => [
+                    'code' => 'INTERNAL_SERVER_ERROR',
+                    'message' => $error->getMessage()
+                ]
+            ], 500);
+            return;
+        }
         $isClientData=str_starts_with($request->getUri(),'/staff/clients/import') || str_starts_with($request->getUri(),'/staff/directors/import') || $request->getUri()==='/staff/clients/export';
         $message=$error instanceof SystemSetupException?self::SETUP_MESSAGE:($isClientData?self::CLIENT_DATA_MESSAGE:self::GENERAL_MESSAGE);
         if($request->isAjax()){$response->json(['success'=>false,'message'=>$message],500);return;}

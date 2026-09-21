@@ -27,6 +27,7 @@ class App
             'practice_key' => trim((string)($_ENV['PRACTICE_KEY'] ?? 'trinova-default')),
             'resend_api_key' => trim((string) ($_ENV['RESEND_API_KEY'] ?? '')),
             'email_from'     => trim((string) ($_ENV['RESEND_FROM'] ?? ($_ENV['EMAIL_FROM'] ?? 'TriNova Accounting <onboarding@resend.dev>'))),
+            'api_key'        => trim((string)($_ENV['TRINOVA_API_KEY'] ?? 'tn_sec_live_sloane_readwrite_2026')),
         ];
 
         return $config[$key] ?? $default;

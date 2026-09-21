@@ -39,6 +39,30 @@ class Router
         return $this;
     }
 
+    public function patch(string $path, array|callable $callback): self
+    {
+        $this->addRoute('PATCH', $path, $callback);
+        return $this;
+    }
+
+    public function put(string $path, array|callable $callback): self
+    {
+        $this->addRoute('PUT', $path, $callback);
+        return $this;
+    }
+
+    public function delete(string $path, array|callable $callback): self
+    {
+        $this->addRoute('DELETE', $path, $callback);
+        return $this;
+    }
+
+    public function options(string $path, array|callable $callback): self
+    {
+        $this->addRoute('OPTIONS', $path, $callback);
+        return $this;
+    }
+
     private function addRoute(string $method, string $path, array|callable $callback): void
     {
         $prefix = $this->groupAttributes['prefix'] ?? '';
@@ -69,6 +93,17 @@ class Router
     {
         $method = $request->getMethod();
         $path = $request->getUri();
+
+        // Immediate preflight termination for /api/v1 routes
+        if ($method === 'OPTIONS' && str_starts_with($path, '/api/v1')) {
+            if (!headers_sent()) {
+                header('Access-Control-Allow-Origin: *');
+                header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');
+                header('Access-Control-Allow-Headers: Content-Type, Authorization, Idempotency-Key, If-Match');
+            }
+            http_response_code(204);
+            return null;
+        }
 
         foreach ($this->routes as $route) {
             if ($route['method'] !== $method) {
@@ -114,6 +149,22 @@ class Router
 
                 return call_user_func_array($callback, array_merge([$request, $response], $params));
             }
+        }
+
+        if (str_starts_with($path, '/api/v1')) {
+            if (!headers_sent()) {
+                header('Access-Control-Allow-Origin: *');
+                header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');
+                header('Access-Control-Allow-Headers: Content-Type, Authorization, Idempotency-Key, If-Match');
+            }
+            $response->json([
+                'status' => 'error',
+                'error' => [
+                    'code' => 'NOT_FOUND',
+                    'message' => 'API endpoint not found.'
+                ]
+            ], 404);
+            return null;
         }
 
         $response->setStatusCode(404);

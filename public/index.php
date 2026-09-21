@@ -70,6 +70,8 @@ use Application\Controllers\Staff\SignatureController as StaffSignatureControlle
 use Application\Controllers\Client\SignatureController as ClientSignatureController;
 use Application\Controllers\SigningController;
 use Application\Controllers\NotificationController;
+use Application\Middleware\ApiAuthMiddleware;
+use Application\Controllers\Api\HealthController as ApiHealthController;
 
 // Simple dotenv loader fallback for environment variables
 $envFile = $basePath . '/.env';
@@ -219,6 +221,16 @@ $app->router->group([
     $r->get('/signatures/{id}', [StaffSignatureController::class, 'show']);
     $r->post('/signatures/cancel', [StaffSignatureController::class, 'cancel'])->middleware([CsrfMiddleware::class]);
     $r->post('/signatures/resend', [StaffSignatureController::class, 'resend'])->middleware([CsrfMiddleware::class]);
+});
+
+// --- API V1 INTEGRATION ROUTES (HEADLESS / SLOANE INTEGRATION) ---
+$app->router->group([
+    'prefix' => '/api/v1',
+    'middleware' => [ApiAuthMiddleware::class]
+], function($r) {
+    // Health & Auth Diagnostics
+    $r->get('/health', [ApiHealthController::class, 'health']);
+    $r->get('/auth/verify', [ApiHealthController::class, 'verify']);
 });
 
 // Security response headers

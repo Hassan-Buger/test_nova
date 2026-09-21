@@ -27,6 +27,8 @@ class Request
         return rtrim($uri, '/') ?: '/';
     }
 
+    private ?array $jsonBody = null;
+
     public function getBody(): array
     {
         $body = [];
@@ -43,10 +45,62 @@ class Request
         return $body;
     }
 
+    public function getJsonBody(): array
+    {
+        if ($this->jsonBody !== null) {
+            return $this->jsonBody;
+        }
+
+        $raw = file_get_contents('php://input');
+        if (empty($raw)) {
+            $this->jsonBody = [];
+            return $this->jsonBody;
+        }
+
+        $decoded = json_decode($raw, true);
+        $this->jsonBody = is_array($decoded) ? $decoded : [];
+        return $this->jsonBody;
+    }
+
     public function input(string $key, mixed $default = null): mixed
     {
+        $json = $this->getJsonBody();
+        if (array_key_exists($key, $json)) {
+            return $json[$key];
+        }
         $body = $this->getBody();
         return $body[$key] ?? $_POST[$key] ?? $_GET[$key] ?? $default;
+    }
+
+    public function getHeader(string $name): ?string
+    {
+        $nameUpper = strtoupper(str_replace('-', '_', $name));
+        if (isset($_SERVER['HTTP_' . $nameUpper])) {
+            return (string)$_SERVER['HTTP_' . $nameUpper];
+        }
+        if (isset($_SERVER[$nameUpper])) {
+            return (string)$_SERVER[$nameUpper];
+        }
+        if (function_exists('getallheaders')) {
+            $headers = getallheaders();
+            if (is_array($headers)) {
+                foreach ($headers as $key => $value) {
+                    if (strcasecmp($key, $name) === 0) {
+                        return (string)$value;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    public function getBearerToken(): ?string
+    {
+        $authHeader = $this->getHeader('Authorization');
+        if ($authHeader && preg_match('/Bearer\s+(\S+)/i', $authHeader, $matches)) {
+            return $matches[1];
+        }
+        return null;
     }
 
     public function getQueryParams(): array
