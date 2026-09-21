@@ -76,6 +76,7 @@ use Application\Controllers\Api\ClientApiController as ApiClientController;
 use Application\Controllers\Api\StatutoryApiController as ApiStatutoryController;
 use Application\Controllers\Api\NoteApiController as ApiNoteController;
 use Application\Controllers\Api\DocumentApiController as ApiDocumentController;
+use Application\Controllers\Api\SignatureApiController as ApiSignatureController;
 
 // Simple dotenv loader fallback for environment variables
 $envFile = $basePath . '/.env';
@@ -251,6 +252,11 @@ $app->router->group([
     $r->get('/companies/{id}/documents', [ApiDocumentController::class, 'listByCompany']);
     $r->post('/documents/{id}/access-token', [ApiDocumentController::class, 'generateAccessToken']);
     $r->get('/documents/download', [ApiDocumentController::class, 'download']);
+
+    // Digital Signatures Bridge
+    $r->get('/companies/{id}/signing-requests', [ApiSignatureController::class, 'listByCompany']);
+    $r->post('/companies/{id}/signing-requests', [ApiSignatureController::class, 'create']);
+    $r->get('/signatures/{id}/audit', [ApiSignatureController::class, 'audit']);
 });
 
 // Security response headers
