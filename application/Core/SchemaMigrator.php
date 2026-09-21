@@ -298,6 +298,21 @@ class SchemaMigrator
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+        // api_idempotency_keys
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `api_idempotency_keys` (
+            `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `idempotency_key` VARCHAR(128) NOT NULL,
+            `request_method` VARCHAR(10) NOT NULL,
+            `request_path` VARCHAR(255) NOT NULL,
+            `request_hash` CHAR(64) NOT NULL,
+            `response_status` INT NOT NULL,
+            `response_body` MEDIUMTEXT NOT NULL,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `expires_at` DATETIME NOT NULL,
+            UNIQUE KEY `uq_idempotency_key` (`idempotency_key`),
+            INDEX `idx_idempotency_expires` (`expires_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
         // signature_requests
         $pdo->exec("CREATE TABLE IF NOT EXISTS `signature_requests` (
             `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

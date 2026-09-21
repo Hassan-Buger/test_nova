@@ -74,6 +74,7 @@ use Application\Middleware\ApiAuthMiddleware;
 use Application\Controllers\Api\HealthController as ApiHealthController;
 use Application\Controllers\Api\ClientApiController as ApiClientController;
 use Application\Controllers\Api\StatutoryApiController as ApiStatutoryController;
+use Application\Controllers\Api\NoteApiController as ApiNoteController;
 
 // Simple dotenv loader fallback for environment variables
 $envFile = $basePath . '/.env';
@@ -241,6 +242,9 @@ $app->router->group([
     // Statutory Deadlines & Companies House Reconciliation
     $r->get('/statutory', [ApiStatutoryController::class, 'index']);
     $r->post('/statutory/sync', [ApiStatutoryController::class, 'sync']);
+
+    // Internal Notes (with Strict Privacy Boundary & Idempotency)
+    $r->post('/companies/{id}/notes', [ApiNoteController::class, 'create']);
 });
 
 // Security response headers
