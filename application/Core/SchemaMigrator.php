@@ -468,6 +468,14 @@ class SchemaMigrator
         self::addColumnIfMissing($pdo, 'notifications', 'title', 'VARCHAR(160) NULL AFTER related_entity');
         self::addColumnIfMissing($pdo, 'notifications', 'message', 'TEXT NULL AFTER title');
         self::addColumnIfMissing($pdo, 'notifications', 'action_url', 'VARCHAR(255) NULL AFTER message');
+
+        // 8. signature_requests columns
+        self::addColumnIfMissing($pdo, 'signature_requests', 'original_checksum_sha256', 'VARCHAR(64) NULL AFTER allow_upload_signature');
+        self::addColumnIfMissing($pdo, 'signature_requests', 'signed_checksum_sha256', 'VARCHAR(64) NULL AFTER original_checksum_sha256');
+        self::addColumnIfMissing($pdo, 'signature_requests', 'qr_token', 'VARCHAR(64) NULL AFTER signed_document_id');
+        self::addColumnIfMissing($pdo, 'signature_requests', 'allow_drawn_signature', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER qr_token');
+        self::addColumnIfMissing($pdo, 'signature_requests', 'allow_typed_signature', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER allow_drawn_signature');
+        self::addColumnIfMissing($pdo, 'signature_requests', 'allow_upload_signature', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER allow_typed_signature');
     }
 
     private static function ensureIndexes(PDO $pdo): void

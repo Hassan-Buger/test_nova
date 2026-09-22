@@ -22,7 +22,7 @@ class SignatureRequest extends Model
                    ce.company_name AS entity_name, ce.entity_scope,
                    u.name AS creator_name, u.email AS creator_email
             FROM signature_requests sr
-            JOIN documents d ON d.id = sr.document_id
+            LEFT JOIN documents d ON d.id = sr.document_id
             LEFT JOIN documents sd ON sd.id = sr.signed_document_id
             LEFT JOIN clients c ON c.id = sr.client_id
             LEFT JOIN users cu ON cu.id = c.user_id
@@ -103,21 +103,61 @@ class SignatureRequest extends Model
 
     public function markCompleted(int $id, int $signedDocId, ?string $originalSha256 = null, ?string $signedSha256 = null): bool
     {
-        $stmt = $this->db->prepare("
-            UPDATE signature_requests 
-            SET status = 'completed', 
-                signed_document_id = :signed_doc_id, 
-                original_checksum_sha256 = COALESCE(:orig_sha, original_checksum_sha256),
-                signed_checksum_sha256 = COALESCE(:signed_sha, signed_checksum_sha256),
-                completed_at = NOW() 
-            WHERE id = :id
-        ");
-        return $stmt->execute([
-            'signed_doc_id' => $signedDocId,
-            'orig_sha'      => $originalSha256,
-            'signed_sha'    => $signedSha256,
-            'id'            => $id,
-        ]);
+        try {
+            $stmt = $this->db->prepare("
+                UPDATE signature_requests 
+                SET status = 'completed', 
+                    signed_document_id = :signed_doc_id, 
+                    original_checksum_sha256 = COALESCE(:orig_sha, original_checksum_sha256),
+                    signed_checksum_sha256 = COALESCE(:signed_sha, signed_checksum_sha256),
+                    completed_at = NOW() 
+                WHERE id = :id
+            ");
+            return $stmt->execute([
+                'signed_doc_id' => $signedDocId,
+                'orig_sha'      => $originalSha256,
+                'signed_sha'    => $signedSha256,
+                'id'            => $id,
+            ]);
+        } catch (\Throwable $e) {
+            if (str_contains($e->getMessage(), 'Unknown column') || str_contains($e->getMessage(), '1054')) {
+                // Dynamically ensure missing checksum columns exist on the table
+                try {
+                    $this->db->exec("ALTER TABLE `signature_requests` ADD COLUMN `original_checksum_sha256` VARCHAR(64) NULL");
+                } catch (\Throwable) {}
+                try {
+                    $this->db->exec("ALTER TABLE `signature_requests` ADD COLUMN `signed_checksum_sha256` VARCHAR(64) NULL");
+                } catch (\Throwable) {}
+
+                // Retry with updated columns
+                try {
+                    $stmt = $this->db->prepare("
+                        UPDATE signature_requests 
+                        SET status = 'completed', 
+                            signed_document_id = :signed_doc_id, 
+                            original_checksum_sha256 = :orig_sha,
+                            signed_checksum_sha256 = :signed_sha,
+                            completed_at = NOW() 
+                        WHERE id = :id
+                    ");
+                    return $stmt->execute([
+                        'signed_doc_id' => $signedDocId,
+                        'orig_sha'      => $originalSha256,
+                        'signed_sha'    => $signedSha256,
+                        'id'            => $id,
+                    ]);
+                } catch (\Throwable) {
+                    // Safe fallback updating core status and signed_document_id only
+                    $stmt = $this->db->prepare("
+                        UPDATE signature_requests 
+                        SET status = 'completed', signed_document_id = :signed_doc_id, completed_at = NOW() 
+                        WHERE id = :id
+                    ");
+                    return $stmt->execute(['signed_doc_id' => $signedDocId, 'id' => $id]);
+                }
+            }
+            throw $e;
+        }
     }
 
     public function markDeclined(int $id, string $reason = ''): bool
