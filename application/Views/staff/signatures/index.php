@@ -1,6 +1,6 @@
 <div class="tn-screen" style="max-width:1160px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
-        <div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:24px">
+        <div style="max-width:720px">
             <h1 style="margin:0 0 6px;font-size:24px;font-weight:800;color:#1e293b">Digital Signatures</h1>
             <p style="margin:0;color:#61756e;font-size:14.5px">Manage e-signature requests, track real-time signer progression, and inspect cryptographic audit certificates.</p>
         </div>
@@ -110,15 +110,20 @@
                                 <td style="padding:16px;color:#64748b;font-size:12.5px">
                                     <?= date('d M Y, H:i', strtotime($req['created_at'])) ?>
                                 </td>
-                                <td style="padding:16px;text-align:right;white-space:nowrap">
-                                    <a href="/staff/signatures/<?= (int)$req['id'] ?>" style="background:#f0fdfa;color:#0d9488;border:1px solid #ccfbf1;padding:7px 12px;border-radius:10px;font-weight:700;font-size:12.5px;text-decoration:none;display:inline-block;margin-right:4px">
-                                        View Details
-                                    </a>
-                                    <?php if ($req['status'] === 'completed' && !empty($req['signed_document_id'])): ?>
-                                        <a href="/staff/documents/download/<?= (int)$req['signed_document_id'] ?>" style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;padding:7px 12px;border-radius:10px;font-weight:700;font-size:12.5px;text-decoration:none;display:inline-block">
-                                            Signed PDF
+                                <td style="padding:14px 16px;text-align:right">
+                                    <div style="display:inline-flex;flex-direction:column;gap:6px;align-items:stretch;min-width:105px">
+                                        <a href="/staff/signatures/<?= (int)$req['id'] ?>" style="background:#f0fdfa;color:#0d9488;border:1px solid #ccfbf1;padding:6px 12px;border-radius:8px;font-weight:700;font-size:12px;text-decoration:none;text-align:center;transition:all .15s">
+                                            View Details
                                         </a>
-                                    <?php endif; ?>
+                                        <?php if ($req['status'] === 'completed' && !empty($req['signed_document_id'])): ?>
+                                            <a href="/staff/documents/download/<?= (int)$req['signed_document_id'] ?>" style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;padding:6px 12px;border-radius:8px;font-weight:700;font-size:12px;text-decoration:none;text-align:center;display:inline-flex;align-items:center;justify-content:center;gap:4px;transition:all .15s">
+                                                <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                                </svg>
+                                                Signed PDF
+                                            </a>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
