@@ -191,6 +191,7 @@ $app->router->group([
     $r->get('/documents', [StaffDocumentController::class, 'index']);
     $r->post('/documents/upload', [StaffDocumentController::class, 'upload'])->middleware([CsrfMiddleware::class]);
     $r->get('/documents/download/{id}', [StaffDocumentController::class, 'download']);
+    $r->get('/documents/view/{id}', [StaffDocumentController::class, 'view']);
     $r->post('/documents/delete', [StaffDocumentController::class, 'delete'])->middleware([CsrfMiddleware::class]);
     $r->post('/documents/bulk-delete', [StaffDocumentController::class, 'bulkDelete'])->middleware([CsrfMiddleware::class]);
     $r->get('/requests', [StaffRequestController::class, 'index']);
@@ -226,6 +227,7 @@ $app->router->group([
     $r->get('/signatures/{id}', [StaffSignatureController::class, 'show']);
     $r->post('/signatures/cancel', [StaffSignatureController::class, 'cancel'])->middleware([CsrfMiddleware::class]);
     $r->post('/signatures/resend', [StaffSignatureController::class, 'resend'])->middleware([CsrfMiddleware::class]);
+    $r->post('/signatures/seal', [StaffSignatureController::class, 'seal'])->middleware([CsrfMiddleware::class]);
 });
 
 // --- API V1 INTEGRATION ROUTES (HEADLESS / SLOANE INTEGRATION) ---

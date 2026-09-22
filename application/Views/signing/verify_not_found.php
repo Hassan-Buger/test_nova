@@ -7,10 +7,10 @@
         </div>
 
         <h1 class="text-2xl font-extrabold text-slate-900 mb-3">
-            Certificate Not Found
+            <?= htmlspecialchars($pageTitle ?? 'Certificate Not Found') ?>
         </h1>
         <p class="text-slate-600 text-sm mb-6">
-            The verification token <code class="px-2 py-1 bg-slate-100 rounded text-xs text-slate-700"><?= htmlspecialchars($qrToken ?? '') ?></code> could not be located in our cryptographic registry.
+            <?= htmlspecialchars($errorMessage ?? "The verification token '" . ($qrToken ?? '') . "' could not be located in our cryptographic registry.") ?>
         </p>
 
         <p class="text-xs text-slate-400">

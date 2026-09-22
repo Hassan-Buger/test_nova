@@ -39,13 +39,17 @@ class SignatureRequest extends Model
     {
         $stmt = $this->db->prepare("
             SELECT sr.*, 
+                   d.id AS original_document_id,
                    d.filename AS original_filename,
-                   sd.filename AS signed_filename, sd.stored_path AS signed_stored_path,
+                   d.stored_path AS original_stored_path,
+                   sd.id AS signed_doc_id,
+                   sd.filename AS signed_filename, 
+                   sd.stored_path AS signed_stored_path,
                    cu.name AS client_name,
                    ce.company_name AS entity_name,
                    u.name AS creator_name
             FROM signature_requests sr
-            JOIN documents d ON d.id = sr.document_id
+            LEFT JOIN documents d ON d.id = sr.document_id
             LEFT JOIN documents sd ON sd.id = sr.signed_document_id
             LEFT JOIN clients c ON c.id = sr.client_id
             LEFT JOIN users cu ON cu.id = c.user_id
@@ -97,14 +101,23 @@ class SignatureRequest extends Model
         return $stmt->execute(['status' => $status, 'id' => $id]);
     }
 
-    public function markCompleted(int $id, int $signedDocId): bool
+    public function markCompleted(int $id, int $signedDocId, ?string $originalSha256 = null, ?string $signedSha256 = null): bool
     {
         $stmt = $this->db->prepare("
             UPDATE signature_requests 
-            SET status = 'completed', signed_document_id = :signed_doc_id, completed_at = NOW() 
+            SET status = 'completed', 
+                signed_document_id = :signed_doc_id, 
+                original_checksum_sha256 = COALESCE(:orig_sha, original_checksum_sha256),
+                signed_checksum_sha256 = COALESCE(:signed_sha, signed_checksum_sha256),
+                completed_at = NOW() 
             WHERE id = :id
         ");
-        return $stmt->execute(['signed_doc_id' => $signedDocId, 'id' => $id]);
+        return $stmt->execute([
+            'signed_doc_id' => $signedDocId,
+            'orig_sha'      => $originalSha256,
+            'signed_sha'    => $signedSha256,
+            'id'            => $id,
+        ]);
     }
 
     public function markDeclined(int $id, string $reason = ''): bool

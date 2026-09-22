@@ -180,6 +180,12 @@ class DocumentController extends Controller
         exit;
     }
 
+    public function view(Request $request, Response $response, int $id): void
+    {
+        $_GET['preview'] = '1';
+        $this->download($request, $response, $id);
+    }
+
     public function delete(Request $request, Response $response): void
     {
         $docId = (int)($request->input('document_id', 0) ?: $request->input('id', 0));

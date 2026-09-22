@@ -144,10 +144,10 @@ class Router
                 if (is_array($callback)) {
                     [$class, $action] = $callback;
                     $controller = new $class();
-                    return call_user_func_array([$controller, $action], array_merge([$request, $response], $params));
+                    return call_user_func_array([$controller, $action], array_merge([$request, $response], array_values($params)));
                 }
 
-                return call_user_func_array($callback, array_merge([$request, $response], $params));
+                return call_user_func_array($callback, array_merge([$request, $response], array_values($params)));
             }
         }
 

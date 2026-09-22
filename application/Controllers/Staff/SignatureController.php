@@ -197,17 +197,68 @@ class SignatureController extends Controller
             return;
         }
 
+        $haveAllSigned = $this->sigSignerModel->haveAllSigned($id);
+
+        // Self-healing: if all parties have completed signing but request is still pending,
+        // automatically seal the document so staff immediately sees the signed PDF.
+        if ($haveAllSigned && $sigRequest['status'] === 'pending') {
+            try {
+                \Application\Services\SignatureSealerService::seal($id);
+                $sigRequest = $this->sigReqModel->find($id) ?: $sigRequest;
+            } catch (Throwable $e) {
+                error_log("Auto-seal for signature request #{$id} deferred: " . $e->getMessage());
+            }
+        }
+
         $signers = $this->sigSignerModel->getByRequestId($id);
         $fields = $this->sigFieldModel->getByRequestId($id);
         $auditEvents = $this->sigAuditModel->getByRequestId($id);
 
         $this->render('staff/signatures/show', [
-            'pageTitle'   => 'Signature Request #' . $id . ': ' . $sigRequest['title'],
-            'request'     => $sigRequest,
-            'signers'     => $signers,
-            'fields'      => $fields,
-            'auditEvents' => $auditEvents,
+            'pageTitle'     => 'Signature Request #' . $id . ': ' . ($sigRequest['title'] ?? 'Document'),
+            'request'       => $sigRequest,
+            'signers'       => $signers,
+            'fields'        => $fields,
+            'auditEvents'   => $auditEvents,
+            'haveAllSigned' => $haveAllSigned,
         ], 'main');
+    }
+
+    /**
+     * Manually finalize and seal an executed signature request.
+     */
+    public function seal(Request $request, Response $response): void
+    {
+        $requestId = (int)($request->getBody()['request_id'] ?? 0);
+        if ($requestId <= 0) {
+            $msg = 'Invalid signature request ID.';
+            if ($request->isAjax()) {
+                $response->json(['success' => false, 'message' => $msg], 422);
+                return;
+            }
+            Session::setFlash('error', $msg);
+            $response->redirect('/staff/signatures');
+            return;
+        }
+
+        try {
+            \Application\Services\SignatureSealerService::seal($requestId);
+            $msg = 'Document successfully sealed and signed PDF generated.';
+            if ($request->isAjax()) {
+                $response->json(['success' => true, 'message' => $msg]);
+                return;
+            }
+            Session::setFlash('success', $msg);
+        } catch (Throwable $e) {
+            $msg = 'Failed to seal document: ' . $e->getMessage();
+            if ($request->isAjax()) {
+                $response->json(['success' => false, 'message' => $msg], 422);
+                return;
+            }
+            Session::setFlash('error', $msg);
+        }
+
+        $response->redirect('/staff/signatures/' . $requestId);
     }
 
     /**

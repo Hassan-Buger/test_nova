@@ -262,30 +262,39 @@ class SigningController extends Controller
     /**
      * Public verification page for completed signature certificates via QR code.
      */
-    public function verify(Request $request, Response $response, string $qrToken): void
+    public function verify(Request $request, Response $response, string $token): void
     {
-        $sigReqModel = new SignatureRequest();
-        $sigSignerModel = new SignatureSigner();
-        $sigAuditModel = new SignatureAuditEvent();
+        try {
+            $sigReqModel = new SignatureRequest();
+            $sigSignerModel = new SignatureSigner();
+            $sigAuditModel = new SignatureAuditEvent();
 
-        $sigRequest = $sigReqModel->findByQrToken($qrToken);
-        if (!$sigRequest) {
-            $this->render('signing/verify_not_found', [
-                'pageTitle' => 'Certificate Not Found',
-                'qrToken'   => $qrToken,
+            $sigRequest = $sigReqModel->findByQrToken($token);
+            if (!$sigRequest) {
+                $this->render('signing/verify_not_found', [
+                    'pageTitle' => 'Certificate Not Found',
+                    'qrToken'   => $token,
+                ], 'clean');
+                return;
+            }
+
+            $signers = $sigSignerModel->getByRequestId((int)$sigRequest['id']);
+            $auditEvents = $sigAuditModel->getByRequestId((int)$sigRequest['id']);
+
+            $this->render('signing/verify', [
+                'pageTitle'   => 'Digital Signature Verification: ' . ($sigRequest['title'] ?? 'Document'),
+                'request'     => $sigRequest,
+                'signers'     => $signers,
+                'auditEvents' => $auditEvents,
+                'qrToken'     => $token,
             ], 'clean');
-            return;
+        } catch (Throwable $e) {
+            error_log("Verification page error for token {$token}: " . $e->getMessage());
+            $this->render('signing/verify_not_found', [
+                'pageTitle'    => 'Verification Unavailable',
+                'qrToken'      => $token,
+                'errorMessage' => 'An error occurred while loading this verification certificate. Please try again.',
+            ], 'clean');
         }
-
-        $signers = $sigSignerModel->getByRequestId((int)$sigRequest['id']);
-        $auditEvents = $sigAuditModel->getByRequestId((int)$sigRequest['id']);
-
-        $this->render('signing/verify', [
-            'pageTitle'   => 'Digital Signature Verification: ' . $sigRequest['title'],
-            'request'     => $sigRequest,
-            'signers'     => $signers,
-            'auditEvents' => $auditEvents,
-            'qrToken'     => $qrToken,
-        ], 'clean');
     }
 }

@@ -23,8 +23,47 @@
                 </p>
             </div>
 
-            <div style="display:flex;align-items:center;gap:8px">
-                <?php if ($request['status'] === 'pending'): ?>
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+                <!-- Original Document View -->
+                <?php if (!empty($request['document_id'])): ?>
+                    <a href="/staff/documents/download/<?= (int)$request['document_id'] ?>?preview=1" target="_blank" style="background:#f8fafc;color:#334155;border:1px solid #cbd5e1;padding:9px 14px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:6px">
+                        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                        View Original PDF
+                    </a>
+                <?php endif; ?>
+
+                <!-- Signed Document View & Download (if completed or exists) -->
+                <?php if (!empty($request['signed_document_id'])): ?>
+                    <a href="/staff/documents/download/<?= (int)$request['signed_document_id'] ?>?preview=1" target="_blank" style="background:#0d9488;color:#fff;padding:9px 16px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 12px -2px rgba(13,148,136,.4)">
+                        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        View Signed PDF
+                    </a>
+                    <a href="/staff/documents/download/<?= (int)$request['signed_document_id'] ?>" style="background:#065f46;color:#fff;padding:9px 16px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:6px">
+                        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        Download Sealed PDF
+                    </a>
+                <?php endif; ?>
+
+                <!-- Seal Action Button (if pending and all signed) -->
+                <?php if ($request['status'] === 'pending' && !empty($haveAllSigned)): ?>
+                    <form action="/staff/signatures/seal" method="POST" style="margin:0">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\Application\Core\Session::csrfToken()) ?>">
+                        <input type="hidden" name="request_id" value="<?= (int)$request['id'] ?>">
+                        <button type="submit" style="background:#0d9488;color:#fff;border:none;padding:9px 18px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 6px 16px -4px rgba(13,148,136,.5)">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Finalize &amp; Seal Document
+                        </button>
+                    </form>
+                <?php elseif ($request['status'] === 'pending'): ?>
                     <form action="/staff/signatures/resend" method="POST" style="margin:0">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\Application\Core\Session::csrfToken()) ?>">
                         <input type="hidden" name="request_id" value="<?= (int)$request['id'] ?>">
@@ -42,15 +81,6 @@
                     </form>
                 <?php endif; ?>
 
-                <?php if ($request['status'] === 'completed' && !empty($request['signed_document_id'])): ?>
-                    <a href="/staff/documents/download/<?= (int)$request['signed_document_id'] ?>" style="background:#0d9488;color:#fff;padding:9px 18px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 6px 14px -6px rgba(13,148,136,.6)">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                        </svg>
-                        Download Sealed PDF
-                    </a>
-                <?php endif; ?>
-
                 <?php if (!empty($request['qr_token'])): ?>
                     <a href="/verify/signature/<?= htmlspecialchars($request['qr_token']) ?>" target="_blank" style="background:#f8fafc;color:#475569;border:1px solid #e2e8f0;padding:9px 14px;border-radius:10px;font-weight:700;font-size:13px;text-decoration:none">
                         View Audit Certificate &rarr;
@@ -59,6 +89,48 @@
             </div>
         </div>
     </div>
+
+    <!-- Execution Completion Banner (when all signers have signed but request was pending) -->
+    <?php if ($request['status'] === 'pending' && !empty($haveAllSigned)): ?>
+        <div style="background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:16px;padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;box-shadow:0 4px 12px -2px rgba(5,150,105,.15)">
+            <div style="display:flex;align-items:center;gap:12px">
+                <div style="width:38px;height:38px;border-radius:10px;background:#059669;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 style="margin:0;font-size:15px;font-weight:800;color:#065f46">All Signatures Complete &bull; Ready for Final Sealing</h3>
+                    <p style="margin:2px 0 0;font-size:13px;color:#047857">Every invited signatory has completed their signature. Click the button to compile the signed PDF and seal the audit certificate.</p>
+                </div>
+            </div>
+            <form action="/staff/signatures/seal" method="POST" style="margin:0">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\Application\Core\Session::csrfToken()) ?>">
+                <input type="hidden" name="request_id" value="<?= (int)$request['id'] ?>">
+                <button type="submit" style="background:#059669;color:#fff;border:none;padding:10px 22px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(5,150,105,.3)">
+                    Finalize &amp; Seal Document Now &rarr;
+                </button>
+            </form>
+        </div>
+    <?php endif; ?>
+
+    <?php
+    // Dynamic SHA-256 fallback computation for display
+    $origChecksum = $request['original_checksum_sha256'] ?? null;
+    if (empty($origChecksum) && !empty($request['original_stored_path'])) {
+        $origPath = \Application\Services\FileStorageService::resolvePath((string)$request['original_stored_path'], (string)($request['original_filename'] ?? ''));
+        if (is_file($origPath)) {
+            $origChecksum = hash_file('sha256', $origPath);
+        }
+    }
+    $signedChecksum = $request['signed_checksum_sha256'] ?? null;
+    if (empty($signedChecksum) && !empty($request['signed_stored_path'])) {
+        $signedPath = \Application\Services\FileStorageService::resolvePath((string)$request['signed_stored_path'], (string)($request['signed_filename'] ?? ''));
+        if (is_file($signedPath)) {
+            $signedChecksum = hash_file('sha256', $signedPath);
+        }
+    }
+    ?>
 
     <!-- Cryptographic Summary Banner -->
     <div style="background:#fff;border-radius:20px;padding:22px;margin-bottom:24px;box-shadow:0 1px 2px rgba(16,54,45,.04),0 14px 34px -24px rgba(16,54,45,.3);border:1px solid #eef4f1">
@@ -69,13 +141,85 @@
             <div style="background:#f8fafc;padding:12px 16px;border-radius:12px;border:1px solid #e2e8f0">
                 <div style="font-size:11.5px;font-weight:600;color:#64748b;margin-bottom:4px">Original Pre-Signing Checksum (SHA-256)</div>
                 <div style="font-family:monospace;font-size:11.5px;color:#1e293b;word-break:break-all">
-                    <?= htmlspecialchars($request['original_checksum_sha256'] ?? 'N/A') ?>
+                    <?= htmlspecialchars($origChecksum ?: 'N/A') ?>
                 </div>
             </div>
             <div style="background:#f0fdfa;padding:12px 16px;border-radius:12px;border:1px solid #ccfbf1">
                 <div style="font-size:11.5px;font-weight:600;color:#0f766e;margin-bottom:4px">Final Sealed PDF Checksum (SHA-256)</div>
                 <div style="font-family:monospace;font-size:11.5px;color:#134e4a;word-break:break-all">
-                    <?= htmlspecialchars($request['signed_checksum_sha256'] ?? 'Pending full execution') ?>
+                    <?= htmlspecialchars($signedChecksum ?: ($request['status'] === 'completed' ? 'Sealed document' : 'Pending full execution')) ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Associated Document Artifacts Card -->
+    <div style="background:#fff;border-radius:20px;padding:24px;margin-bottom:24px;box-shadow:0 1px 2px rgba(16,54,45,.04),0 14px 34px -24px rgba(16,54,45,.3)">
+        <h2 style="margin:0 0 16px;font-size:17px;font-weight:800;color:#1e293b">Document Artifacts &amp; Files</h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+            <!-- Original Document -->
+            <div style="padding:18px;border-radius:14px;background:#f8fafc;border:1.5px solid #e2e8f0;display:flex;flex-direction:column;justify-content:space-between;gap:12px">
+                <div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+                        <div style="width:34px;height:34px;border-radius:8px;background:#e2e8f0;color:#475569;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px">PDF</div>
+                        <div>
+                            <div style="font-weight:700;font-size:14px;color:#1e293b"><?= htmlspecialchars($request['original_filename'] ?? 'Original Document.pdf') ?></div>
+                            <div style="font-size:11.5px;color:#64748b">Pre-Signing Original Document</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <?php if (!empty($request['document_id'])): ?>
+                        <a href="/staff/documents/download/<?= (int)$request['document_id'] ?>?preview=1" target="_blank" style="background:#fff;color:#0d9488;border:1px solid #0d9488;padding:7px 14px;border-radius:8px;font-weight:700;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+                            View in Browser
+                        </a>
+                        <a href="/staff/documents/download/<?= (int)$request['document_id'] ?>" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:7px 14px;border-radius:8px;font-weight:700;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+                            Download
+                        </a>
+                    <?php else: ?>
+                        <span style="color:#94a3b8;font-size:12px">No original document linked</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Signed Document -->
+            <div style="padding:18px;border-radius:14px;background:#f0fdfa;border:1.5px solid #ccfbf1;display:flex;flex-direction:column;justify-content:space-between;gap:12px">
+                <div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+                        <div style="width:34px;height:34px;border-radius:8px;background:#0d9488;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px">PDF</div>
+                        <div>
+                            <div style="font-weight:700;font-size:14px;color:#0f766e">
+                                <?= htmlspecialchars($request['signed_filename'] ?? ($request['title'] . '_signed.pdf')) ?>
+                            </div>
+                            <div style="font-size:11.5px;color:#0d9488">
+                                <?php if (!empty($request['signed_document_id'])): ?>
+                                    Sealed Executed PDF &bull; Cryptographically Verified
+                                <?php else: ?>
+                                    Execution Pending
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <?php if (!empty($request['signed_document_id'])): ?>
+                        <a href="/staff/documents/download/<?= (int)$request['signed_document_id'] ?>?preview=1" target="_blank" style="background:#0d9488;color:#fff;padding:7px 14px;border-radius:8px;font-weight:700;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+                            View Signed PDF
+                        </a>
+                        <a href="/staff/documents/download/<?= (int)$request['signed_document_id'] ?>" style="background:#fff;color:#0f766e;border:1px solid #0d9488;padding:7px 14px;border-radius:8px;font-weight:700;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+                            Download Sealed PDF
+                        </a>
+                    <?php elseif ($request['status'] === 'pending' && !empty($haveAllSigned)): ?>
+                        <form action="/staff/signatures/seal" method="POST" style="margin:0">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\Application\Core\Session::csrfToken()) ?>">
+                            <input type="hidden" name="request_id" value="<?= (int)$request['id'] ?>">
+                            <button type="submit" style="background:#0d9488;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-weight:700;font-size:12.5px;cursor:pointer">
+                                Seal &amp; Generate Signed PDF
+                            </button>
+                        </form>
+                    <?php else: ?>
+                        <span style="color:#64748b;font-size:12px">Available after all signers complete</span>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -83,7 +227,7 @@
 
     <!-- Signers Status Card -->
     <div style="background:#fff;border-radius:20px;padding:24px;margin-bottom:24px;box-shadow:0 1px 2px rgba(16,54,45,.04),0 14px 34px -24px rgba(16,54,45,.3)">
-        <h2 style="margin:0 0 16px;font-size:17px;font-weight:800;color:#1e293b">Signatories & Execution Status</h2>
+        <h2 style="margin:0 0 16px;font-size:17px;font-weight:800;color:#1e293b">Signatories &amp; Execution Status</h2>
         <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse;text-align:left;font-size:13.5px">
                 <thead>
