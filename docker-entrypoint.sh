@@ -43,6 +43,11 @@ EOF
 a2enmod rewrite 2>/dev/null || true
 a2ensite 000-default 2>/dev/null || true
 
+# Ensure vendor dependencies exist
+if [ ! -f /var/www/html/vendor/autoload.php ] || [ ! -d /var/www/html/vendor/setasign ]; then
+    (cd /var/www/html && composer install --no-dev --optimize-autoloader --no-interaction) 2>/dev/null || true
+fi
+
 # Ensure storage directories exist and are writable
 mkdir -p /var/www/html/storage/uploads
 if [ -d /var/www/html/storage/seeds ]; then

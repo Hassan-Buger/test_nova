@@ -32,8 +32,8 @@ RUN echo '<Directory /var/www/html/public>\n\
 # Copy application source code
 COPY . /var/www/html
 
-# Generate Composer autoloader inside container
-RUN cd /var/www/html && composer dump-autoload --optimize --no-dev 2>/dev/null || true
+# Ensure Composer dependencies and optimized autoloader
+RUN cd /var/www/html && (composer install --no-dev --optimize-autoloader --no-interaction || composer dump-autoload --optimize --no-dev) 2>/dev/null || true
 
 # Ensure storage directories exist and are writable
 RUN mkdir -p /var/www/html/storage/uploads /var/www/html/storage/logs \
