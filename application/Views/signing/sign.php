@@ -134,13 +134,20 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
                     <input type="text" id="typedNameInput" value="<?= htmlspecialchars($signer['name']) ?>" oninput="updateTypedPreview()" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:border-teal-600 focus:outline-none" />
                 </div>
                 <div class="border border-slate-200 rounded-2xl p-6 bg-slate-50 text-center min-h-[120px] flex items-center justify-center">
-                    <div id="typedPreview" class="text-3xl sm:text-4xl text-slate-900 font-signature select-none">
+                    <div id="typedPreview" class="text-3xl sm:text-4xl text-slate-900 font-sig-greatvibes select-none">
                         <?= htmlspecialchars($signer['name']) ?>
                     </div>
                 </div>
-                <div class="flex items-center justify-center gap-2">
-                    <button type="button" onclick="setTypedStyle('font-signature')" class="px-3 py-1 rounded-lg border border-slate-200 text-xs font-semibold active:bg-slate-100">Style 1</button>
-                    <button type="button" onclick="setTypedStyle('italic font-serif')" class="px-3 py-1 rounded-lg border border-slate-200 text-xs font-semibold active:bg-slate-100">Style 2</button>
+                <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                    <button type="button" id="btnStyle1" onclick="setTypedStyle('font-sig-greatvibes')" class="px-3 py-1.5 rounded-lg border-2 border-teal-600 bg-teal-50/50 text-teal-900 text-xs font-bold font-sig-greatvibes text-sm">Calligraphy</button>
+                    <button type="button" id="btnStyle2" onclick="setTypedStyle('font-sig-alexbrush')" class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:border-teal-400 font-sig-alexbrush text-sm">Executive</button>
+                    <button type="button" id="btnStyle3" onclick="setTypedStyle('font-sig-dancing')" class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:border-teal-400 font-sig-dancing text-sm">Dynamic</button>
+                    <button type="button" id="btnStyle4" onclick="setTypedStyle('font-sig-sacramento')" class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:border-teal-400 font-sig-sacramento text-sm">Cursive</button>
+                    <button type="button" id="btnStyle5" onclick="setTypedStyle('font-sig-caveat')" class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:border-teal-400 font-sig-caveat text-sm">Handwriting</button>
+                    <button type="button" onclick="randomizeTypedStyle()" class="px-3 py-1.5 rounded-lg bg-teal-50 border border-teal-200 text-teal-700 text-xs font-bold hover:bg-teal-100 transition-all flex items-center gap-1 shadow-xs">
+                        <span>🎲</span>
+                        <span>Random Style</span>
+                    </button>
                 </div>
             </div>
 
@@ -279,26 +286,39 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
 
         let activeFieldForModal = null;
         let activeTab = 'draw';
-        let typedStyleClass = 'font-signature';
+        let typedStyleClass = 'font-sig-greatvibes';
         let uploadedDataUri = null;
 
-        // Signature Canvas setup
+        const typedStyles = [
+            'font-sig-greatvibes',
+            'font-sig-alexbrush',
+            'font-sig-dancing',
+            'font-sig-sacramento',
+            'font-sig-caveat'
+        ];
+
+        // Signature Canvas setup - High DPI Super-Sampling (Zero Blur)
         const sigCanvas = document.getElementById('signatureCanvas');
         const sigCtx = sigCanvas.getContext('2d');
         let isDrawing = false;
         let hasDrawn = false;
+        let lastDrawX = 0;
+        let lastDrawY = 0;
 
         function resizeCanvas() {
             const rect = sigCanvas.getBoundingClientRect();
             if (rect.width > 0 && rect.height > 0) {
-                const dpr = window.devicePixelRatio || 1;
-                sigCanvas.width = rect.width * dpr;
-                sigCanvas.height = rect.height * dpr;
+                // 3x Super-Sampling for ultra-sharp, crystal clear ink lines
+                const dpr = Math.max(3, (window.devicePixelRatio || 1) * 2);
+                sigCanvas.width = Math.round(rect.width * dpr);
+                sigCanvas.height = Math.round(rect.height * dpr);
                 sigCtx.scale(dpr, dpr);
-                sigCtx.lineWidth = 2.5;
+                sigCtx.lineWidth = 2.4;
                 sigCtx.lineCap = 'round';
                 sigCtx.lineJoin = 'round';
-                sigCtx.strokeStyle = '#0f172a';
+                sigCtx.strokeStyle = '#091e42'; // deep signature navy-black
+                sigCtx.imageSmoothingEnabled = true;
+                sigCtx.imageSmoothingQuality = 'high';
             }
         }
 
@@ -318,6 +338,12 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
                 isDrawing = true;
                 hasDrawn = true;
                 const p = getPos(e);
+                lastDrawX = p.x;
+                lastDrawY = p.y;
+                sigCtx.beginPath();
+                sigCtx.arc(p.x, p.y, sigCtx.lineWidth / 2, 0, Math.PI * 2);
+                sigCtx.fillStyle = sigCtx.strokeStyle;
+                sigCtx.fill();
                 sigCtx.beginPath();
                 sigCtx.moveTo(p.x, p.y);
             }
@@ -326,12 +352,21 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
                 if (!isDrawing) return;
                 e.preventDefault();
                 const p = getPos(e);
-                sigCtx.lineTo(p.x, p.y);
+                // Quadratic Bezier midpoint smoothing for natural calligraphy ink flow
+                const midX = (lastDrawX + p.x) / 2;
+                const midY = (lastDrawY + p.y) / 2;
+                sigCtx.quadraticCurveTo(lastDrawX, lastDrawY, midX, midY);
                 sigCtx.stroke();
+                lastDrawX = p.x;
+                lastDrawY = p.y;
             }
 
             function stop() {
-                isDrawing = false;
+                if (isDrawing) {
+                    sigCtx.lineTo(lastDrawX, lastDrawY);
+                    sigCtx.stroke();
+                    isDrawing = false;
+                }
             }
 
             sigCanvas.addEventListener('mousedown', start);
@@ -371,6 +406,22 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
         function setTypedStyle(styleClass) {
             typedStyleClass = styleClass;
             document.getElementById('typedPreview').className = 'text-3xl sm:text-4xl text-slate-900 select-none ' + styleClass;
+            typedStyles.forEach((cls, i) => {
+                const btn = document.getElementById('btnStyle' + (i + 1));
+                if (btn) {
+                    if (cls === styleClass) {
+                        btn.className = 'px-3 py-1.5 rounded-lg border-2 border-teal-600 bg-teal-50/50 text-teal-900 text-xs font-bold ' + cls;
+                    } else {
+                        btn.className = 'px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:border-teal-400 ' + cls;
+                    }
+                }
+            });
+        }
+
+        function randomizeTypedStyle() {
+            const available = typedStyles.filter(s => s !== typedStyleClass);
+            const chosen = available[Math.floor(Math.random() * available.length)];
+            setTypedStyle(chosen);
         }
 
         function handleSignatureUpload(e) {
@@ -415,7 +466,7 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const alpha = data[(y * width + x) * 4 + 3];
-                    if (alpha > 15) {
+                    if (alpha > 10) {
                         found = true;
                         if (x < minX) minX = x;
                         if (x > maxX) maxX = x;
@@ -427,7 +478,8 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
 
             if (!found) return sourceCanvas;
 
-            const pad = 8;
+            // Generous margin around strokes so curves are never clipped
+            const pad = 24;
             minX = Math.max(0, minX - pad);
             minY = Math.max(0, minY - pad);
             maxX = Math.min(width, maxX + pad);
@@ -440,6 +492,8 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
             cropped.width = cropW;
             cropped.height = cropH;
             const cCtx = cropped.getContext('2d');
+            cCtx.imageSmoothingEnabled = true;
+            cCtx.imageSmoothingQuality = 'high';
             cCtx.drawImage(sourceCanvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
             return cropped;
         }
@@ -457,19 +511,54 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
                 signatureTypes[activeFieldForModal] = 'drawn';
             } else if (activeTab === 'type') {
                 const text = document.getElementById('typedNameInput').value.trim() || signerInfo.name;
-                const font = (typedStyleClass.includes('font-signature')) ? '32px "Caveat", cursive' : 'italic 26px serif';
+
+                let fontFamily = '"Great Vibes", cursive';
+                let fontSize = 110;
+                let offsetY = 135;
+
+                if (typedStyleClass.includes('font-sig-alexbrush')) {
+                    fontFamily = '"Alex Brush", cursive';
+                    fontSize = 115;
+                    offsetY = 135;
+                } else if (typedStyleClass.includes('font-sig-dancing')) {
+                    fontFamily = '"Dancing Script", cursive';
+                    fontSize = 95;
+                    offsetY = 130;
+                } else if (typedStyleClass.includes('font-sig-sacramento')) {
+                    fontFamily = '"Sacramento", cursive';
+                    fontSize = 110;
+                    offsetY = 130;
+                } else if (typedStyleClass.includes('font-sig-caveat') || typedStyleClass.includes('font-signature')) {
+                    fontFamily = '"Caveat", cursive';
+                    fontSize = 110;
+                    offsetY = 130;
+                } else if (typedStyleClass.includes('font-serif')) {
+                    fontFamily = 'italic serif';
+                    fontSize = 80;
+                    offsetY = 130;
+                }
+
+                // High-resolution canvas (360+ DPI) for razor-sharp clarity
                 const tempCanvas = document.createElement('canvas');
                 const tCtx = tempCanvas.getContext('2d');
-                tCtx.font = font;
+                tCtx.imageSmoothingEnabled = true;
+                tCtx.imageSmoothingQuality = 'high';
+
+                tCtx.font = `${fontSize}px ${fontFamily}`;
                 const metrics = tCtx.measureText(text);
-                const textWidth = Math.max(80, Math.ceil(metrics.width) + 20);
-                const textHeight = 52;
+                const textWidth = Math.max(200, Math.ceil(metrics.width) + 80);
+                const textHeight = 240;
+
                 tempCanvas.width = textWidth;
                 tempCanvas.height = textHeight;
-                tCtx.font = font;
-                tCtx.fillStyle = '#0f172a';
+
+                tCtx.imageSmoothingEnabled = true;
+                tCtx.imageSmoothingQuality = 'high';
+                tCtx.font = `${fontSize}px ${fontFamily}`;
+                tCtx.fillStyle = '#091e42'; // deep signature navy-black
                 tCtx.textBaseline = 'middle';
-                tCtx.fillText(text, 10, textHeight / 2);
+                tCtx.fillText(text, 40, offsetY);
+
                 resultDataUri = tempCanvas.toDataURL('image/png');
                 signatureTypes[activeFieldForModal] = 'typed';
             } else if (activeTab === 'upload') {

@@ -6,7 +6,7 @@
     <title><?= htmlspecialchars($pageTitle ?? 'TriNova Digital Signature Portal') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Caveat:wght@600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Caveat:wght@600;700&family=Great+Vibes&family=Alex+Brush&family=Dancing+Script:wght@600;700&family=Sacramento&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -35,6 +35,11 @@
         * { box-sizing: border-box; }
         body { margin: 0; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; color: #1e293b; background: #f8fafc; -webkit-font-smoothing: antialiased; }
         .font-signature { font-family: 'Caveat', cursive; }
+        .font-sig-caveat { font-family: 'Caveat', cursive; }
+        .font-sig-greatvibes { font-family: 'Great Vibes', cursive; }
+        .font-sig-alexbrush { font-family: 'Alex Brush', cursive; }
+        .font-sig-dancing { font-family: 'Dancing Script', cursive; }
+        .font-sig-sacramento { font-family: 'Sacramento', cursive; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.4); border-radius: 999px; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
