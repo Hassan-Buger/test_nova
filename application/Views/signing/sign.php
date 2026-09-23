@@ -2,7 +2,8 @@
 /**
  * TriNova Digital Signature Execution Screen
  */
-$requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['required'] ?? $f['is_required'] ?? 1) === 1));
+$actionableFields = array_values(array_filter($myFields, fn($f) => ($f['type'] ?? $f['field_type'] ?? '') !== 'date'));
+$requiredFieldsCount = count($actionableFields) ?: 1;
 ?>
 
 <?php if (!$isTurn): ?>
@@ -62,7 +63,7 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                             <span>Signing as: <strong class="text-slate-700"><?= htmlspecialchars($signer['name']) ?></strong></span>
                             <span>&bull;</span>
                             <span id="counterBadge" class="font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200/50">
-                                <span id="completedCount">0</span> of <span id="totalFieldsCount"><?= count($myFields) ?></span> completed
+                                <span id="completedCount">0</span> of <span id="totalFieldsCount"><?= $requiredFieldsCount ?></span> completed
                             </span>
                         </div>
                     </div>
@@ -200,27 +201,34 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
         const signerInfo = <?= json_encode($signer) ?>;
         const pdfUrl = '/sign/' + signingToken + '/pdf';
 
+        // Current date formatted in standard DD/MM/YYYY
+        const today = new Date();
+        const dd = String(today.getDate()).padStart(2, '0');
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const yyyy = today.getFullYear();
+        const presentDateFormatted = `${dd}/${mm}/${yyyy}`;
+
         // Safeguard: Ensure fields exist and are normalized
         if (!Array.isArray(myFields) || myFields.length === 0) {
             myFields = [{
                 id: 'auto_sig_' + (signerInfo.id || '1'),
                 type: 'signature',
                 page: 1,
-                position_x: 8.5,
-                position_y: 71.5,
-                width: 46.0,
-                height: 8.5,
+                position_x: 9.5,
+                position_y: 74.0,
+                width: 28.0,
+                height: 5.6,
                 required: 1,
                 is_auto: true
             }, {
                 id: 'auto_date_' + (signerInfo.id || '1'),
                 type: 'date',
                 page: 1,
-                position_x: 62.0,
-                position_y: 75.0,
-                width: 27.0,
-                height: 5.2,
-                required: 1,
+                position_x: 55.0,
+                position_y: 80.0,
+                width: 35.0,
+                height: 3.5,
+                required: 0,
                 is_auto: true
             }];
         }
@@ -230,33 +238,37 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
             const fType = f.type || f.field_type || 'signature';
             f.type = fType;
             f.page = 1;
-            f.required = (f.required !== undefined) ? parseInt(f.required) : ((f.is_required !== undefined) ? parseInt(f.is_required) : 1);
 
             if (fType === 'signature' || fType === 'initial' || fType === 'initials') {
-                f.position_x = 8.5;
-                f.position_y = 71.5;
-                f.width = 46.0;
-                f.height = 8.5;
+                f.position_x = 9.5;
+                f.position_y = 74.0;
+                f.width = 28.0;
+                f.height = 5.6;
+                f.required = 1;
             } else if (fType === 'date') {
-                f.position_x = 62.0;
-                f.position_y = 75.0;
-                f.width = 27.0;
-                f.height = 5.2;
+                f.position_x = 55.0;
+                f.position_y = 80.0;
+                f.width = 35.0;
+                f.height = 3.5;
+                f.required = 0; // Handled automatically by the system
+            } else {
+                f.required = (f.required !== undefined) ? parseInt(f.required) : ((f.is_required !== undefined) ? parseInt(f.is_required) : 1);
             }
         });
 
+        // Only count fields requiring user action (signature)
+        const actionableFields = myFields.filter(f => (f.type || f.field_type) !== 'date');
         const totalCountEl = document.getElementById('totalFieldsCount');
-        if (totalCountEl) totalCountEl.textContent = myFields.length;
+        if (totalCountEl) totalCountEl.textContent = actionableFields.length || 1;
 
         // State tracking
         const fieldValues = {};
         const signatureTypes = {};
-        const todayStr = new Date().toISOString().split('T')[0];
 
         myFields.forEach(f => {
             const fType = f.type || 'signature';
             if (fType === 'date') {
-                fieldValues[f.id] = f.custom_text || f.field_value || todayStr;
+                fieldValues[f.id] = presentDateFormatted;
             } else {
                 fieldValues[f.id] = f.signature_data || f.field_value || f.custom_text || '';
             }
@@ -390,6 +402,48 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
             activeFieldForModal = null;
         }
 
+        function cropCanvas(sourceCanvas) {
+            const ctx = sourceCanvas.getContext('2d');
+            const width = sourceCanvas.width;
+            const height = sourceCanvas.height;
+            const imgData = ctx.getImageData(0, 0, width, height);
+            const data = imgData.data;
+
+            let minX = width, minY = height, maxX = 0, maxY = 0;
+            let found = false;
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const alpha = data[(y * width + x) * 4 + 3];
+                    if (alpha > 15) {
+                        found = true;
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+
+            if (!found) return sourceCanvas;
+
+            const pad = 8;
+            minX = Math.max(0, minX - pad);
+            minY = Math.max(0, minY - pad);
+            maxX = Math.min(width, maxX + pad);
+            maxY = Math.min(height, maxY + pad);
+
+            const cropW = Math.max(1, maxX - minX);
+            const cropH = Math.max(1, maxY - minY);
+
+            const cropped = document.createElement('canvas');
+            cropped.width = cropW;
+            cropped.height = cropH;
+            const cCtx = cropped.getContext('2d');
+            cCtx.drawImage(sourceCanvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+            return cropped;
+        }
+
         function saveSignature() {
             if (!activeFieldForModal) return;
             let resultDataUri = '';
@@ -399,18 +453,23 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                     alert('Please draw your signature before adopting.');
                     return;
                 }
-                resultDataUri = sigCanvas.toDataURL('image/png');
+                resultDataUri = cropCanvas(sigCanvas).toDataURL('image/png');
                 signatureTypes[activeFieldForModal] = 'drawn';
             } else if (activeTab === 'type') {
                 const text = document.getElementById('typedNameInput').value.trim() || signerInfo.name;
+                const font = (typedStyleClass.includes('font-signature')) ? '32px "Caveat", cursive' : 'italic 26px serif';
                 const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = 600;
-                tempCanvas.height = 180;
                 const tCtx = tempCanvas.getContext('2d');
+                tCtx.font = font;
+                const metrics = tCtx.measureText(text);
+                const textWidth = Math.max(80, Math.ceil(metrics.width) + 20);
+                const textHeight = 52;
+                tempCanvas.width = textWidth;
+                tempCanvas.height = textHeight;
+                tCtx.font = font;
                 tCtx.fillStyle = '#0f172a';
-                tCtx.font = (typedStyleClass.includes('font-signature')) ? '64px "Caveat", cursive' : 'italic 52px serif';
                 tCtx.textBaseline = 'middle';
-                tCtx.fillText(text, 30, 90);
+                tCtx.fillText(text, 10, textHeight / 2);
                 resultDataUri = tempCanvas.toDataURL('image/png');
                 signatureTypes[activeFieldForModal] = 'typed';
             } else if (activeTab === 'upload') {
@@ -435,11 +494,11 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
 
             if (value && value.startsWith('data:image/')) {
                 fieldEl.innerHTML = `
-                    <div class="w-full h-full bg-white/95 border-2 border-teal-600 rounded-xl p-1 relative flex items-center justify-center overflow-hidden shadow-sm group cursor-pointer hover:border-teal-700 transition-all">
+                    <div class="w-full h-full bg-white/95 border-2 border-teal-600 rounded-lg p-0.5 relative flex items-center justify-center overflow-hidden shadow-sm group cursor-pointer hover:border-teal-700 transition-all">
                         <img src="${value}" class="max-w-full max-h-full object-contain pointer-events-none" />
-                        <span class="absolute inset-0 bg-teal-950/70 text-white font-bold text-xs flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[1px]">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                            Click to Edit / Change
+                        <span class="absolute inset-0 bg-teal-950/70 text-white font-bold text-[10px] flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[1px]">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            Edit
                         </span>
                     </div>
                 `;
@@ -448,7 +507,7 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
 
         function updateProgress() {
             let completed = 0;
-            myFields.forEach(f => {
+            actionableFields.forEach(f => {
                 const val = fieldValues[f.id];
                 if (val && String(val).trim() !== '') {
                     completed++;
@@ -458,7 +517,7 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
             const countEl = document.getElementById('completedCount');
             if (countEl) countEl.textContent = completed;
 
-            const allCompleted = (completed >= myFields.length);
+            const allCompleted = (completed >= actionableFields.length);
             const finishBtn = document.getElementById('finishBtn');
             if (finishBtn) {
                 finishBtn.disabled = !allCompleted;
@@ -473,7 +532,7 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
         }
 
         function focusNextField() {
-            for (const f of myFields) {
+            for (const f of actionableFields) {
                 const val = fieldValues[f.id];
                 if (!val || String(val).trim() === '') {
                     const el = document.getElementById('field-widget-' + f.id);
@@ -512,7 +571,7 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
             for (const f of myFields) {
                 payload.push({
                     field_id: f.id,
-                    value: fieldValues[f.id] || '',
+                    value: fieldValues[f.id] || ((f.type === 'date') ? presentDateFormatted : ''),
                     type: (f.type || f.field_type || 'signature'),
                     signature_type: (signatureTypes[f.id] || 'drawn'),
                     page: 1,
@@ -620,15 +679,15 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                 const isSigType = (fieldType === 'signature' || fieldType === 'initial' || fieldType === 'initials');
 
                 if (isSigType) {
-                    const label = (fieldType === 'initial' || fieldType === 'initials') ? 'Initial' : 'Signature';
+                    const actionLabel = (fieldType === 'initial' || fieldType === 'initials') ? 'Initial' : 'Sign';
                     widget.innerHTML = `
-                        <div class="w-full h-full bg-teal-500/15 hover:bg-teal-500/25 border-2 border-teal-600 border-dashed rounded-xl flex items-center justify-center text-teal-950 gap-2 p-2 shadow-sm transition-all group animate-pulse hover:border-teal-700 hover:shadow-md cursor-pointer">
-                            <svg class="w-5 h-5 text-teal-600 group-hover:scale-110 transition-transform shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <div class="w-full h-full bg-teal-500/15 hover:bg-teal-500/25 border-2 border-teal-600 border-dashed rounded-lg flex items-center justify-center text-teal-950 gap-1 px-1.5 py-0.5 shadow-xs transition-all group animate-pulse hover:border-teal-700 hover:shadow cursor-pointer">
+                            <svg class="w-3.5 h-3.5 text-teal-600 group-hover:scale-110 transition-transform shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                             </svg>
-                            <div class="flex flex-col items-start leading-tight">
-                                <span class="text-xs font-black uppercase tracking-wider text-teal-950">Click to ${label} Here</span>
-                                <span class="text-[10px] text-teal-700 font-semibold">Draw, Type or Upload</span>
+                            <div class="flex flex-col items-start leading-none">
+                                <span class="text-[10px] font-black uppercase tracking-wider text-teal-950">Click to ${actionLabel}</span>
+                                <span class="text-[8.5px] text-teal-700 font-semibold mt-0.5">Draw, Type or Upload</span>
                             </div>
                         </div>
                     `;
@@ -637,11 +696,11 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                         openSignatureModal(f.id, fieldType);
                     };
                 } else if (fieldType === 'date') {
-                    const val = fieldValues[f.id] || todayStr;
+                    // Non-manual automated date display matching light grey template styling
+                    widget.className = 'absolute pointer-events-none select-none';
                     widget.innerHTML = `
-                        <div class="w-full h-full bg-white/95 border border-slate-300 rounded-lg shadow-sm px-2 flex items-center gap-1.5 focus-within:border-teal-600 focus-within:ring-2 focus-within:ring-teal-100">
-                            <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                            <input type="date" value="${val}" onchange="fieldValues['${f.id}'] = this.value; updateProgress()" class="w-full h-full text-xs font-bold text-slate-800 bg-transparent border-0 focus:outline-none" />
+                        <div class="w-full h-full flex items-center justify-end text-[11px] font-normal text-slate-400">
+                            Date: ${presentDateFormatted}
                         </div>
                     `;
                 } else if (fieldType === 'text') {

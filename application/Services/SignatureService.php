@@ -342,10 +342,10 @@ class SignatureService
                 'signer_id'  => (int)$signer['id'],
                 'type'       => 'signature',
                 'page'       => 1,
-                'position_x' => 8.5,
-                'position_y' => 71.5,
-                'width'      => 46.0,
-                'height'     => 8.5,
+                'position_x' => 9.5,
+                'position_y' => 74.0,
+                'width'      => 28.0,
+                'height'     => 5.6,
                 'required'   => 1,
             ]);
             $sigFieldModel->create([
@@ -353,11 +353,11 @@ class SignatureService
                 'signer_id'  => (int)$signer['id'],
                 'type'       => 'date',
                 'page'       => 1,
-                'position_x' => 62.0,
-                'position_y' => 75.0,
-                'width'      => 27.0,
-                'height'     => 5.2,
-                'required'   => 1,
+                'position_x' => 55.0,
+                'position_y' => 80.0,
+                'width'      => 35.0,
+                'height'     => 3.5,
+                'required'   => 0,
             ]);
             $myFields = $sigFieldModel->getBySignerId((int)$signer['id']);
         }
@@ -408,10 +408,10 @@ class SignatureService
                 'signer_id'  => $signerId,
                 'type'       => 'signature',
                 'page'       => 1,
-                'position_x' => 8.5,
-                'position_y' => 71.5,
-                'width'      => 46.0,
-                'height'     => 8.5,
+                'position_x' => 9.5,
+                'position_y' => 74.0,
+                'width'      => 28.0,
+                'height'     => 5.6,
                 'required'   => 1,
             ]);
             $sigFieldModel->create([
@@ -419,11 +419,11 @@ class SignatureService
                 'signer_id'  => $signerId,
                 'type'       => 'date',
                 'page'       => 1,
-                'position_x' => 62.0,
-                'position_y' => 75.0,
-                'width'      => 27.0,
-                'height'     => 5.2,
-                'required'   => 1,
+                'position_x' => 55.0,
+                'position_y' => 80.0,
+                'width'      => 35.0,
+                'height'     => 3.5,
+                'required'   => 0,
             ]);
             $myFields = $sigFieldModel->getBySignerId($signerId);
         }
@@ -480,8 +480,8 @@ class SignatureService
                         continue;
                     }
                 } elseif ($type === 'date') {
-                    $val = is_array($data) ? ($data['value'] ?? '') : (string)$data;
-                    $customText = !empty($val) ? trim((string)$val) : date('d/m/Y');
+                    // Always record the actual present date
+                    $customText = date('d/m/Y');
                 } elseif ($type === 'checkbox') {
                     $val = is_array($data) ? ($data['value'] ?? '') : (string)$data;
                     $customText = (!empty($val) && $val !== '0') ? '1' : '0';
@@ -493,15 +493,15 @@ class SignatureService
                 // Snap coordinates inside Authorized Signature Area on Page 1
                 $subPage = 1;
                 if ($type === 'signature' || $type === 'initial' || $type === 'initials') {
-                    $subX = 8.5;
-                    $subY = 71.5;
-                    $subW = 46.0;
-                    $subH = 8.5;
+                    $subX = 9.5;
+                    $subY = 74.0;
+                    $subW = 28.0;
+                    $subH = 5.6;
                 } elseif ($type === 'date') {
-                    $subX = 62.0;
-                    $subY = 75.0;
-                    $subW = 27.0;
-                    $subH = 5.2;
+                    $subX = 55.0;
+                    $subY = 80.0;
+                    $subW = 35.0;
+                    $subH = 3.5;
                 } else {
                     $subPage = !empty($data['page']) ? (int)$data['page'] : ($field['page'] ?? 1);
                     $subX = isset($data['position_x']) ? (float)$data['position_x'] : ($field['position_x'] ?? null);

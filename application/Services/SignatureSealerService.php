@@ -283,6 +283,14 @@ class SignatureSealerService
         $type = $field['field_type'] ?? $field['type'] ?? 'signature';
 
         if ($type === 'signature' || $type === 'initial' || $type === 'initials') {
+            // Guarantee elegant compact dimensions within the Authorized Signature Area
+            if ($y >= 200) {
+                if ($w > 62.0) $w = 58.8; // ~28%
+                if ($h > 18.0) $h = 16.6; // ~5.6%
+                if ($x < 20.0) $x = 20.0; // aligns with text at 20mm
+                if ($y < 218.0) $y = 219.8; // sits comfortably above text at 240mm
+            }
+
             $sigData = (string)($field['field_value'] ?? $field['signature_data'] ?? '');
             $sigType = (string)($field['signature_type'] ?? 'drawn');
 
@@ -301,7 +309,19 @@ class SignatureSealerService
                         $tempFiles[] = $tmpFile;
 
                         try {
-                            $pdf->Image($tmpFile, $x, $y, $w, $h);
+                            $imgSize = @getimagesize($tmpFile);
+                            if ($imgSize && !empty($imgSize[0]) && !empty($imgSize[1])) {
+                                $imgW = (float)$imgSize[0];
+                                $imgH = (float)$imgSize[1];
+                                $scale = min($w / $imgW, $h / $imgH);
+                                $actualW = $imgW * $scale;
+                                $actualH = $imgH * $scale;
+                                $actualX = $x;
+                                $actualY = $y + ($h - $actualH);
+                                $pdf->Image($tmpFile, $actualX, $actualY, $actualW, $actualH);
+                            } else {
+                                $pdf->Image($tmpFile, $x, $y, $w, $h);
+                            }
                         } catch (Throwable $e) {
                             // Fallback if image render encounters format quirk
                             self::renderFallbackSignatureText($pdf, $x, $y, $w, $h, (string)($field['custom_label'] ?? $field['custom_text'] ?? 'Signed'));
@@ -315,10 +335,29 @@ class SignatureSealerService
                 }
             }
         } elseif ($type === 'date') {
-            $dateText = !empty($field['field_value']) ? $field['field_value'] : (!empty($field['custom_text']) ? $field['custom_text'] : date('d/m/Y'));
-            $pdf->SetFont('Helvetica', '', 10);
-            $pdf->SetTextColor(30, 41, 59); // slate-800
-            $pdf->Text($x + 1, $y + ($h * 0.65), $dateText);
+            $rawDate = !empty($field['field_value']) ? $field['field_value'] : (!empty($field['custom_text']) ? $field['custom_text'] : '');
+            if (!empty($rawDate) && strtotime(str_replace('/', '-', $rawDate))) {
+                $dateText = date('d/m/Y', strtotime(str_replace('/', '-', $rawDate)));
+            } else {
+                $dateText = date('d/m/Y');
+            }
+
+            // If positioned inside the standard Authorized Signature Area on Page 1
+            if ($y >= 200) {
+                // Cover any previous template date cleanly with the signature box background color (#f8fafc)
+                $pdf->SetFillColor(248, 250, 252);
+                $pdf->Rect(100, 238.5, 92, 6.5, 'F');
+
+                // Stamp the present date in the exact light grey color (#94a3b8) matching the template
+                $pdf->SetFont('Helvetica', '', 8);
+                $pdf->SetTextColor(148, 163, 184); // light grey #94a3b8
+                $pdf->SetXY(100, 240);
+                $pdf->Cell(80, 5, 'Date: ' . $dateText, 0, 1, 'R');
+            } else {
+                $pdf->SetFont('Helvetica', '', 9);
+                $pdf->SetTextColor(71, 85, 105);
+                $pdf->Text($x + 1, $y + ($h * 0.65), $dateText);
+            }
         } elseif ($type === 'name' || $type === 'email' || $type === 'text') {
             $text = (string)($field['field_value'] ?? $field['custom_label'] ?? $field['custom_text'] ?? '');
             $pdf->SetFont('Helvetica', '', 10);
@@ -345,13 +384,13 @@ class SignatureSealerService
      */
     private static function renderTypedSignatureText(Fpdi $pdf, float $x, float $y, float $w, float $h, string $name): void
     {
-        $fontSize = min(16.0, max(10.0, $h * 2.2));
+        $fontSize = min(13.5, max(9.0, $h * 1.6));
         $pdf->SetFont('Times', 'I', $fontSize);
         $pdf->SetTextColor(30, 58, 138); // navy blue #1e3a8a
-        $pdf->Text($x + 2, $y + ($h * 0.72), $name);
+        $pdf->Text($x + 2, $y + ($h * 0.70), $name);
 
         // Subtle baseline accent line under typed signature
-        $pdf->SetDrawColor(148, 163, 184); // slate-400
+        $pdf->SetDrawColor(203, 213, 225); // slate-300
         $pdf->SetLineWidth(0.2);
         $pdf->Line($x + 1, $y + $h - 0.5, $x + $w - 1, $y + $h - 0.5);
     }
