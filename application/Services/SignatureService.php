@@ -385,8 +385,8 @@ class SignatureService
 
         try {
             // Process each submitted field
-            foreach ($fieldSubmissions as $fieldId => $data) {
-                $fieldId = (int)$fieldId;
+            foreach ($fieldSubmissions as $k => $data) {
+                $fieldId = (int)(is_array($data) && isset($data['field_id']) ? $data['field_id'] : $k);
                 if (!isset($myFieldsById[$fieldId])) {
                     continue; // Ignore fields that do not belong to this signer
                 }
@@ -399,17 +399,20 @@ class SignatureService
                 $customText = null;
 
                 if ($type === 'signature' || $type === 'initials') {
-                    $sigData = (string)($data['value'] ?? '');
-                    $sigType = (string)($data['type'] ?? 'drawn');
+                    $sigData = is_array($data) ? (string)($data['value'] ?? '') : (string)$data;
+                    $sigType = is_array($data) ? (string)($data['type'] ?? 'drawn') : 'drawn';
                     if (empty($sigData)) {
                         continue;
                     }
                 } elseif ($type === 'date') {
-                    $customText = !empty($data['value']) ? trim((string)$data['value']) : date('d/m/Y');
+                    $val = is_array($data) ? ($data['value'] ?? '') : $data;
+                    $customText = !empty($val) ? trim((string)$val) : date('d/m/Y');
                 } elseif ($type === 'checkbox') {
-                    $customText = !empty($data['value']) ? '1' : '0';
+                    $val = is_array($data) ? ($data['value'] ?? '') : $data;
+                    $customText = !empty($val) ? '1' : '0';
                 } else {
-                    $customText = trim((string)($data['value'] ?? ''));
+                    $val = is_array($data) ? ($data['value'] ?? '') : $data;
+                    $customText = trim((string)$val);
                 }
 
                 $sigFieldModel->saveFieldValue($fieldId, $sigData, $sigType, $customText);

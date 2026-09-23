@@ -2,7 +2,7 @@
 /**
  * TriNova Digital Signature Execution Screen
  */
-$requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['is_required'] ?? 1) === 1));
+$requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['required'] ?? $f['is_required'] ?? 1) === 1));
 ?>
 
 <?php if (!$isTurn): ?>
@@ -202,7 +202,7 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['is_requ
         // State tracking
         const fieldValues = {};
         myFields.forEach(f => {
-            fieldValues[f.id] = f.field_value || '';
+            fieldValues[f.id] = f.signature_data || f.custom_text || f.field_value || '';
         });
 
         let activeFieldForModal = null;
@@ -421,7 +421,8 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['is_requ
             for (const f of myFields) {
                 payload.push({
                     field_id: f.id,
-                    value: fieldValues[f.id] || ''
+                    value: fieldValues[f.id] || '',
+                    type: (f.type || f.field_type || 'signature')
                 });
             }
 
@@ -481,6 +482,9 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['is_requ
                 }
 
                 updateProgress();
+
+                // Automatically scroll and draw attention to the first signature field
+                setTimeout(() => focusNextField(), 500);
             } catch (err) {
                 console.error('PDF load error:', err);
                 document.getElementById('pdfLoading').innerHTML = `
@@ -494,44 +498,48 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['is_requ
         }
 
         function renderPageFields(pageNum, overlayContainer) {
-            const pageFields = myFields.filter(f => parseInt(f.page_number) === pageNum);
+            const pageFields = myFields.filter(f => parseInt(f.page || f.page_number || 1) === pageNum);
 
             pageFields.forEach(f => {
                 const widget = document.createElement('div');
                 widget.id = 'field-widget-' + f.id;
                 widget.className = 'absolute pointer-events-auto cursor-pointer transition-all';
-                widget.style.left = f.position_x + '%';
-                widget.style.top = f.position_y + '%';
-                widget.style.width = f.width + '%';
-                widget.style.height = f.height + '%';
+                widget.style.left = (f.position_x || 10) + '%';
+                widget.style.top = (f.position_y || 80) + '%';
+                widget.style.width = (f.width || 24) + '%';
+                widget.style.height = (f.height || 8) + '%';
 
-                const isSigType = (f.field_type === 'signature' || f.field_type === 'initial');
+                const fieldType = f.type || f.field_type || 'signature';
+                const isSigType = (fieldType === 'signature' || fieldType === 'initial' || fieldType === 'initials');
 
                 if (isSigType) {
-                    const label = (f.field_type === 'initial') ? 'Initial' : 'Sign';
+                    const label = (fieldType === 'initial' || fieldType === 'initials') ? 'Initial' : 'Sign';
                     widget.innerHTML = `
-                        <div class="w-full h-full bg-teal-500/10 hover:bg-teal-500/20 border-2 border-teal-600 border-dashed rounded-lg flex items-center justify-center text-teal-800 gap-1.5 p-1 shadow-sm transition-all group">
+                        <div class="w-full h-full bg-teal-500/10 hover:bg-teal-500/20 border-2 border-teal-600 border-dashed rounded-lg flex items-center justify-center text-teal-800 gap-1.5 p-1 shadow-sm transition-all group animate-pulse">
                             <svg class="w-4 h-4 text-teal-600 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                             </svg>
                             <span class="text-xs font-extrabold uppercase tracking-wider">${label} Here</span>
                         </div>
                     `;
-                    widget.onclick = () => openSignatureModal(f.id, f.field_type);
-                } else if (f.field_type === 'date') {
+                    widget.onclick = () => openSignatureModal(f.id, fieldType);
+                } else if (fieldType === 'date') {
                     const today = new Date().toISOString().split('T')[0];
-                    fieldValues[f.id] = today;
+                    if (!fieldValues[f.id]) {
+                        fieldValues[f.id] = today;
+                    }
                     widget.innerHTML = `
-                        <input type="date" value="${today}" onchange="fieldValues[${f.id}] = this.value; updateProgress()" class="w-full h-full text-xs font-bold text-slate-800 bg-white/95 border border-slate-300 rounded px-2 shadow-sm focus:outline-none focus:border-teal-600" />
+                        <input type="date" value="${fieldValues[f.id]}" onchange="fieldValues[${f.id}] = this.value; updateProgress()" class="w-full h-full text-xs font-bold text-slate-800 bg-white/95 border border-slate-300 rounded px-2 shadow-sm focus:outline-none focus:border-teal-600" />
                     `;
-                } else if (f.field_type === 'text') {
+                } else if (fieldType === 'text') {
                     widget.innerHTML = `
-                        <input type="text" placeholder="${f.custom_label || 'Enter text...'}" oninput="fieldValues[${f.id}] = this.value; updateProgress()" class="w-full h-full text-xs text-slate-800 bg-white/95 border border-slate-300 rounded px-2 shadow-sm focus:outline-none focus:border-teal-600" />
+                        <input type="text" value="${fieldValues[f.id] || ''}" placeholder="${f.custom_text || f.custom_label || 'Enter text...'}" oninput="fieldValues[${f.id}] = this.value; updateProgress()" class="w-full h-full text-xs text-slate-800 bg-white/95 border border-slate-300 rounded px-2 shadow-sm focus:outline-none focus:border-teal-600" />
                     `;
-                } else if (f.field_type === 'checkbox') {
+                } else if (fieldType === 'checkbox') {
+                    const isChecked = fieldValues[f.id] ? 'checked' : '';
                     widget.innerHTML = `
                         <div class="w-full h-full flex items-center justify-center bg-white/80 border border-slate-300 rounded">
-                            <input type="checkbox" onchange="fieldValues[${f.id}] = this.checked ? '1' : ''; updateProgress()" class="w-5 h-5 text-teal-600 rounded cursor-pointer" />
+                            <input type="checkbox" ${isChecked} onchange="fieldValues[${f.id}] = this.checked ? '1' : ''; updateProgress()" class="w-5 h-5 text-teal-600 rounded cursor-pointer" />
                         </div>
                     `;
                 }
@@ -545,14 +553,14 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['is_requ
             });
 
             // Display placeholder boxes for other signers
-            const otherFields = allFields.filter(f => parseInt(f.page_number) === pageNum && parseInt(f.signer_id) !== parseInt(signerInfo.id));
+            const otherFields = allFields.filter(f => parseInt(f.page || f.page_number || 1) === pageNum && parseInt(f.signer_id) !== parseInt(signerInfo.id));
             otherFields.forEach(f => {
                 const widget = document.createElement('div');
                 widget.className = 'absolute pointer-events-none opacity-60';
-                widget.style.left = f.position_x + '%';
-                widget.style.top = f.position_y + '%';
-                widget.style.width = f.width + '%';
-                widget.style.height = f.height + '%';
+                widget.style.left = (f.position_x || 10) + '%';
+                widget.style.top = (f.position_y || 80) + '%';
+                widget.style.width = (f.width || 24) + '%';
+                widget.style.height = (f.height || 8) + '%';
                 widget.innerHTML = `
                     <div class="w-full h-full bg-slate-200/50 border border-slate-300 border-dashed rounded-lg flex items-center justify-center text-slate-500 text-[10px] font-semibold">
                         Awaiting Co-Signer
