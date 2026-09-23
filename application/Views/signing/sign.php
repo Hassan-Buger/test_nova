@@ -186,6 +186,7 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
     <!-- Hidden Form for Submission -->
     <form id="submissionForm" method="POST" action="/sign/<?= htmlspecialchars($token) ?>/submit" class="hidden">
         <input type="hidden" name="fields_json" id="submissionFieldsJson" />
+        <input type="hidden" name="fields" id="submissionFields" />
     </form>
 
     <!-- PDF.js library -->
@@ -445,7 +446,10 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                 });
             }
 
-            document.getElementById('submissionFieldsJson').value = JSON.stringify(payload);
+            const jsonStr = JSON.stringify(payload);
+            document.getElementById('submissionFieldsJson').value = jsonStr;
+            const fieldsInput = document.getElementById('submissionFields');
+            if (fieldsInput) fieldsInput.value = jsonStr;
             document.getElementById('finishBtn').disabled = true;
             document.getElementById('finishBtnText').textContent = 'Sealing Document...';
             document.getElementById('submissionForm').submit();

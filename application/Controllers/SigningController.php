@@ -75,10 +75,23 @@ class SigningController extends Controller
         $ua = $_SERVER['HTTP_USER_AGENT'] ?? null;
 
         $body = $request->getBody();
-        $fields = $body['fields'] ?? [];
+        $fields = $body['fields'] ?? null;
+
+        if (empty($fields) && !empty($body['fields_json'])) {
+            $fields = json_decode((string)$body['fields_json'], true) ?: [];
+        }
+
+        if (empty($fields)) {
+            $json = $request->getJsonBody();
+            if (!empty($json['fields']) && is_array($json['fields'])) {
+                $fields = $json['fields'];
+            } elseif (!empty($json['fields_json'])) {
+                $fields = is_string($json['fields_json']) ? json_decode($json['fields_json'], true) : (array)$json['fields_json'];
+            }
+        }
 
         if (!is_array($fields)) {
-            $fields = json_decode((string)($body['fields_json'] ?? '[]'), true) ?: [];
+            $fields = [];
         }
 
         try {
