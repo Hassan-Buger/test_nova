@@ -72,6 +72,13 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                     <button type="button" onclick="openDeclineModal()" class="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs transition-all">
                         Decline
                     </button>
+
+                    <button type="button" id="openSignatureModalBtn" onclick="openSignatureModal()" class="px-3.5 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200/80 font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm">
+                        <svg class="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                        </svg>
+                        <span>Draw / Upload Sign</span>
+                    </button>
                     
                     <button type="button" id="nextFieldBtn" onclick="focusNextField()" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition-all">
                         Next Field &darr;
@@ -101,7 +108,7 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
     </div>
 
     <!-- SIGNATURE PAD MODAL -->
-    <div id="signatureModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div id="signatureModal" onclick="if(event.target===this)closeSignatureModal()" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
         <div class="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full p-6 animate-fade-in">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
                 <h3 class="text-lg font-extrabold text-slate-900" id="modalTitle">Adopt Your Signature</h3>
@@ -204,7 +211,19 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
         const fieldValues = {};
         const signatureTypes = {};
         myFields.forEach(f => {
-            fieldValues[f.id] = f.signature_data || f.custom_text || f.field_value || '';
+            const ft = f.type || f.field_type || 'signature';
+            const isSig = (ft === 'signature' || ft === 'initial' || ft === 'initials');
+            if (isSig) {
+                // Must only accept valid signature image data URIs!
+                // Never fall back to custom_text or custom_label (which are field labels like "Signature" or "Sign Here")
+                if (f.signature_data && String(f.signature_data).startsWith('data:image/')) {
+                    fieldValues[f.id] = f.signature_data;
+                } else {
+                    fieldValues[f.id] = '';
+                }
+            } else {
+                fieldValues[f.id] = f.signature_data || f.field_value || f.custom_text || '';
+            }
             signatureTypes[f.id] = f.signature_type || 'drawn';
         });
 
@@ -267,19 +286,36 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
 
         function clearDrawCanvas() {
             sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+            sigCtx.beginPath();
+            sigCtx.lineWidth = 2.5;
+            sigCtx.lineCap = 'round';
+            sigCtx.lineJoin = 'round';
+            sigCtx.strokeStyle = '#0f172a';
             hasDrawn = false;
         }
 
         function switchSigTab(tab) {
             activeTab = tab;
             ['Draw', 'Type', 'Upload'].forEach(t => {
-                const isCurrent = t.toLowerCase() === tab;
-                document.getElementById('tabContent' + t).classList.toggle('hidden', !isCurrent);
+                const isCurrent = t.toLowerCase() === tab.toLowerCase();
+                const content = document.getElementById('tabContent' + t);
+                if (content) content.classList.toggle('hidden', !isCurrent);
                 const btn = document.getElementById('tabBtn' + t);
-                btn.className = isCurrent 
-                    ? 'flex-1 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-teal-600 text-teal-600 transition-all'
-                    : 'flex-1 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-all';
+                if (btn) {
+                    btn.className = isCurrent 
+                        ? 'flex-1 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-teal-600 text-teal-600 transition-all'
+                        : 'flex-1 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-all';
+                }
             });
+
+            if (tab === 'draw') {
+                sigCtx.lineWidth = 2.5;
+                sigCtx.lineCap = 'round';
+                sigCtx.lineJoin = 'round';
+                sigCtx.strokeStyle = '#0f172a';
+            } else if (tab === 'type') {
+                updateTypedPreview();
+            }
         }
 
         function updateTypedPreview() {
@@ -298,37 +334,75 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
             const reader = new FileReader();
             reader.onload = function(evt) {
                 uploadedDataUri = evt.target.result;
-                document.getElementById('uploadPreviewImg').src = uploadedDataUri;
-                document.getElementById('uploadPreviewContainer').classList.remove('hidden');
+                const previewImg = document.getElementById('uploadPreviewImg');
+                if (previewImg) previewImg.src = uploadedDataUri;
+                const previewContainer = document.getElementById('uploadPreviewContainer');
+                if (previewContainer) previewContainer.classList.remove('hidden');
             };
             reader.readAsDataURL(file);
         }
 
         function openSignatureModal(fieldId, fieldType) {
+            // Find signature or initial field if not explicitly passed
+            if (!fieldId) {
+                const sigField = myFields.find(f => {
+                    const t = f.type || f.field_type || 'signature';
+                    return t === 'signature' || t === 'initial' || t === 'initials';
+                });
+                if (sigField) {
+                    fieldId = sigField.id;
+                    fieldType = sigField.type || sigField.field_type || 'signature';
+                }
+            }
             activeFieldForModal = fieldId;
-            document.getElementById('modalTitle').textContent = (fieldType === 'initial') ? 'Adopt Your Initials' : 'Adopt Your Signature';
+            const isInitial = (fieldType === 'initial' || fieldType === 'initials');
+            const titleEl = document.getElementById('modalTitle');
+            if (titleEl) {
+                titleEl.textContent = isInitial ? 'Adopt Your Initials' : 'Adopt Your Signature';
+            }
+
+            const modal = document.getElementById('signatureModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                modal.style.display = 'flex';
+            }
+
+            switchSigTab('draw');
             clearDrawCanvas();
-            document.getElementById('signatureModal').style.display = 'flex';
         }
 
         function closeSignatureModal() {
-            document.getElementById('signatureModal').style.display = 'none';
+            const modal = document.getElementById('signatureModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                modal.style.display = 'none';
+            }
             activeFieldForModal = null;
         }
 
         function saveSignature() {
+            if (!activeFieldForModal) {
+                const sigField = myFields.find(f => {
+                    const t = f.type || f.field_type || 'signature';
+                    return t === 'signature' || t === 'initial' || t === 'initials';
+                });
+                if (sigField) activeFieldForModal = sigField.id;
+            }
             if (!activeFieldForModal) return;
+
             let resultDataUri = '';
 
             if (activeTab === 'draw') {
                 if (!hasDrawn) {
-                    alert('Please draw your signature before adopting.');
+                    alert('Please draw your signature in the box before adopting.');
                     return;
                 }
                 resultDataUri = sigCanvas.toDataURL('image/png');
             } else if (activeTab === 'type') {
                 // Convert typed font to canvas image
-                const text = document.getElementById('typedNameInput').value || signerInfo.name;
+                const text = (document.getElementById('typedNameInput').value || signerInfo.name || 'Signer').trim();
                 const tempCanvas = document.createElement('canvas');
                 tempCanvas.width = 460;
                 tempCanvas.height = 140;
@@ -340,15 +414,30 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                 resultDataUri = tempCanvas.toDataURL('image/png');
             } else if (activeTab === 'upload') {
                 if (!uploadedDataUri) {
-                    alert('Please choose an image file first.');
+                    alert('Please select and upload a signature image file first.');
                     return;
                 }
                 resultDataUri = uploadedDataUri;
             }
 
+            if (!resultDataUri) return;
+
+            const selectedType = (activeTab === 'type' ? 'typed' : (activeTab === 'upload' ? 'uploaded' : 'drawn'));
+
             fieldValues[activeFieldForModal] = resultDataUri;
-            signatureTypes[activeFieldForModal] = (activeTab === 'type' ? 'typed' : (activeTab === 'upload' ? 'uploaded' : 'drawn'));
+            signatureTypes[activeFieldForModal] = selectedType;
             updateFieldUI(activeFieldForModal, resultDataUri);
+
+            // Also auto-fill any other empty signature fields for this signer
+            myFields.forEach(f => {
+                const ft = f.type || f.field_type || 'signature';
+                if ((ft === 'signature' || ft === 'initial' || ft === 'initials') && (!fieldValues[f.id] || fieldValues[f.id] === '')) {
+                    fieldValues[f.id] = resultDataUri;
+                    signatureTypes[f.id] = selectedType;
+                    updateFieldUI(f.id, resultDataUri);
+                }
+            });
+
             closeSignatureModal();
             updateProgress();
             focusNextField();
@@ -373,22 +462,37 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
         function updateProgress() {
             let completed = 0;
             myFields.forEach(f => {
+                const ft = f.type || f.field_type || 'signature';
+                const isSig = (ft === 'signature' || ft === 'initial' || ft === 'initials');
                 const val = fieldValues[f.id];
-                if (val && String(val).trim() !== '') {
-                    completed++;
+
+                if (isSig) {
+                    if (val && String(val).startsWith('data:image/')) {
+                        completed++;
+                    }
+                } else {
+                    if (val && String(val).trim() !== '') {
+                        completed++;
+                    }
                 }
             });
 
             document.getElementById('completedCount').textContent = completed;
             const allCompleted = (completed >= myFields.length);
             const finishBtn = document.getElementById('finishBtn');
-            finishBtn.disabled = !allCompleted;
+            if (finishBtn) {
+                finishBtn.disabled = !allCompleted;
+            }
         }
 
         function focusNextField() {
             for (const f of myFields) {
+                const ft = f.type || f.field_type || 'signature';
+                const isSig = (ft === 'signature' || ft === 'initial' || ft === 'initials');
                 const val = fieldValues[f.id];
-                if (!val || String(val).trim() === '') {
+                const isDone = isSig ? (val && String(val).startsWith('data:image/')) : (val && String(val).trim() !== '');
+
+                if (!isDone) {
                     const el = document.getElementById('field-widget-' + f.id);
                     if (el) {
                         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -421,18 +525,30 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
         }
 
         function submitSigningForm() {
-            // Guard: verify all required fields are filled before submitting
             let missingCount = 0;
+            let firstMissing = null;
+
             for (const f of myFields) {
+                const ft = f.type || f.field_type || 'signature';
+                const isSig = (ft === 'signature' || ft === 'initial' || ft === 'initials');
                 const val = fieldValues[f.id];
-                if (!val || String(val).trim() === '') {
+                const isDone = isSig ? (val && String(val).startsWith('data:image/')) : (val && String(val).trim() !== '');
+
+                if (!isDone) {
                     missingCount++;
+                    if (!firstMissing) firstMissing = f;
                 }
             }
 
             if (missingCount > 0) {
-                alert('Please sign the document by clicking the "Sign Here" box before finishing.');
-                focusNextField();
+                if (firstMissing) {
+                    const ft = firstMissing.type || firstMissing.field_type || 'signature';
+                    if (ft === 'signature' || ft === 'initial' || ft === 'initials') {
+                        openSignatureModal(firstMissing.id, ft);
+                    } else {
+                        focusNextField();
+                    }
+                }
                 return;
             }
 
@@ -454,6 +570,14 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
             document.getElementById('finishBtnText').textContent = 'Sealing Document...';
             document.getElementById('submissionForm').submit();
         }
+
+        // Global keyboard shortcut: Escape to close modals
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeSignatureModal();
+                closeDeclineModal();
+            }
+        });
 
         // PDF.js rendering pipeline
         if (typeof pdfjsLib !== 'undefined') {

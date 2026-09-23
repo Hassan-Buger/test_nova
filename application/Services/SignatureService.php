@@ -398,7 +398,7 @@ class SignatureService
                 $sigType = null;
                 $customText = null;
 
-                if ($type === 'signature' || $type === 'initials') {
+                if ($type === 'signature' || $type === 'initials' || $type === 'initial') {
                     $sigData = is_array($data) ? (string)($data['value'] ?? '') : (string)$data;
                     $rawType = is_array($data) ? (string)($data['sig_type'] ?? ($data['type'] ?? 'drawn')) : 'drawn';
                     $sigType = in_array($rawType, ['drawn', 'typed', 'uploaded'], true) ? $rawType : 'drawn';
