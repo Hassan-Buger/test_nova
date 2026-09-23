@@ -2,7 +2,7 @@
 /**
  * TriNova Digital Signature Execution Screen
  */
-$requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['required'] ?? $f['is_required'] ?? 1) === 1));
+$requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['is_required'] ?? 1) === 1));
 ?>
 
 <?php if (!$isTurn): ?>
@@ -72,19 +72,12 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                     <button type="button" onclick="openDeclineModal()" class="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold text-xs transition-all">
                         Decline
                     </button>
-
-                    <button type="button" id="openSignatureModalBtn" onclick="openSignatureModal()" class="px-3.5 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200/80 font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm">
-                        <svg class="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-                        </svg>
-                        <span>Draw / Upload Sign</span>
-                    </button>
                     
                     <button type="button" id="nextFieldBtn" onclick="focusNextField()" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition-all">
                         Next Field &darr;
                     </button>
 
-                    <button type="button" id="finishBtn" disabled onclick="submitSigningForm()" class="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm shadow-md shadow-teal-600/20 flex items-center gap-2 transition-all">
+                    <button type="button" id="finishBtn" onclick="submitSigningForm()" class="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm shadow-md shadow-teal-600/20 flex items-center gap-2 transition-all">
                         <span id="finishBtnText">Finish & Sign Document</span>
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -108,7 +101,7 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
     </div>
 
     <!-- SIGNATURE PAD MODAL -->
-    <div id="signatureModal" onclick="if(event.target===this)closeSignatureModal()" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div id="signatureModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
         <div class="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full p-6 animate-fade-in">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
                 <h3 class="text-lg font-extrabold text-slate-900" id="modalTitle">Adopt Your Signature</h3>
@@ -193,7 +186,6 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
     <!-- Hidden Form for Submission -->
     <form id="submissionForm" method="POST" action="/sign/<?= htmlspecialchars($token) ?>/submit" class="hidden">
         <input type="hidden" name="fields_json" id="submissionFieldsJson" />
-        <input type="hidden" name="fields" id="submissionFields" />
     </form>
 
     <!-- PDF.js library -->
@@ -202,54 +194,15 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
     <script>
         // Data passed from backend
         const signingToken = <?= json_encode($token) ?>;
-        let myFields = <?= json_encode($myFields) ?>;
+        const myFields = <?= json_encode($myFields) ?>;
         const allFields = <?= json_encode($allFields) ?>;
         const signerInfo = <?= json_encode($signer) ?>;
         const pdfUrl = '/sign/' + signingToken + '/pdf';
 
-        // Safeguard: if document has no fields defined for this signer, auto-create signature & date fields
-        // placed directly over the "AUTHORIZED SIGNATURE AREA"
-        if (!Array.isArray(myFields) || myFields.length === 0) {
-            myFields = [{
-                id: 'auto_sig_' + (signerInfo.id || '1'),
-                type: 'signature',
-                page: 1, // dynamically updated to pdf.numPages once PDF loads
-                position_x: 8.0,
-                position_y: 70.5,
-                width: 45.0,
-                height: 9.5,
-                required: 1,
-                is_auto: true
-            }, {
-                id: 'auto_date_' + (signerInfo.id || '1'),
-                type: 'date',
-                page: 1,
-                position_x: 62.0,
-                position_y: 78.5,
-                width: 25.0,
-                height: 5.0,
-                required: 1,
-                is_auto: true
-            }];
-        }
-
+        // State tracking
         const fieldValues = {};
-        const signatureTypes = {};
         myFields.forEach(f => {
-            const ft = f.type || f.field_type || 'signature';
-            const isSig = (ft === 'signature' || ft === 'initial' || ft === 'initials');
-            if (isSig) {
-                // Must only accept valid signature image data URIs!
-                // Never fall back to custom_text or custom_label (which are field labels like "Signature" or "Sign Here")
-                if (f.signature_data && String(f.signature_data).startsWith('data:image/')) {
-                    fieldValues[f.id] = f.signature_data;
-                } else {
-                    fieldValues[f.id] = '';
-                }
-            } else {
-                fieldValues[f.id] = f.signature_data || f.field_value || f.custom_text || '';
-            }
-            signatureTypes[f.id] = f.signature_type || 'drawn';
+            fieldValues[f.id] = f.field_value || '';
         });
 
         let activeFieldForModal = null;
@@ -311,36 +264,19 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
 
         function clearDrawCanvas() {
             sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
-            sigCtx.beginPath();
-            sigCtx.lineWidth = 2.5;
-            sigCtx.lineCap = 'round';
-            sigCtx.lineJoin = 'round';
-            sigCtx.strokeStyle = '#0f172a';
             hasDrawn = false;
         }
 
         function switchSigTab(tab) {
             activeTab = tab;
             ['Draw', 'Type', 'Upload'].forEach(t => {
-                const isCurrent = t.toLowerCase() === tab.toLowerCase();
-                const content = document.getElementById('tabContent' + t);
-                if (content) content.classList.toggle('hidden', !isCurrent);
+                const isCurrent = t.toLowerCase() === tab;
+                document.getElementById('tabContent' + t).classList.toggle('hidden', !isCurrent);
                 const btn = document.getElementById('tabBtn' + t);
-                if (btn) {
-                    btn.className = isCurrent 
-                        ? 'flex-1 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-teal-600 text-teal-600 transition-all'
-                        : 'flex-1 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-all';
-                }
+                btn.className = isCurrent 
+                    ? 'flex-1 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-teal-600 text-teal-600 transition-all'
+                    : 'flex-1 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition-all';
             });
-
-            if (tab === 'draw') {
-                sigCtx.lineWidth = 2.5;
-                sigCtx.lineCap = 'round';
-                sigCtx.lineJoin = 'round';
-                sigCtx.strokeStyle = '#0f172a';
-            } else if (tab === 'type') {
-                updateTypedPreview();
-            }
         }
 
         function updateTypedPreview() {
@@ -359,75 +295,37 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
             const reader = new FileReader();
             reader.onload = function(evt) {
                 uploadedDataUri = evt.target.result;
-                const previewImg = document.getElementById('uploadPreviewImg');
-                if (previewImg) previewImg.src = uploadedDataUri;
-                const previewContainer = document.getElementById('uploadPreviewContainer');
-                if (previewContainer) previewContainer.classList.remove('hidden');
+                document.getElementById('uploadPreviewImg').src = uploadedDataUri;
+                document.getElementById('uploadPreviewContainer').classList.remove('hidden');
             };
             reader.readAsDataURL(file);
         }
 
         function openSignatureModal(fieldId, fieldType) {
-            // Find signature or initial field if not explicitly passed
-            if (!fieldId) {
-                const sigField = myFields.find(f => {
-                    const t = f.type || f.field_type || 'signature';
-                    return t === 'signature' || t === 'initial' || t === 'initials';
-                });
-                if (sigField) {
-                    fieldId = sigField.id;
-                    fieldType = sigField.type || sigField.field_type || 'signature';
-                }
-            }
             activeFieldForModal = fieldId;
-            const isInitial = (fieldType === 'initial' || fieldType === 'initials');
-            const titleEl = document.getElementById('modalTitle');
-            if (titleEl) {
-                titleEl.textContent = isInitial ? 'Adopt Your Initials' : 'Adopt Your Signature';
-            }
-
-            const modal = document.getElementById('signatureModal');
-            if (modal) {
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-                modal.style.display = 'flex';
-            }
-
-            switchSigTab('draw');
+            document.getElementById('modalTitle').textContent = (fieldType === 'initial') ? 'Adopt Your Initials' : 'Adopt Your Signature';
             clearDrawCanvas();
+            document.getElementById('signatureModal').style.display = 'flex';
         }
 
         function closeSignatureModal() {
-            const modal = document.getElementById('signatureModal');
-            if (modal) {
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-                modal.style.display = 'none';
-            }
+            document.getElementById('signatureModal').style.display = 'none';
             activeFieldForModal = null;
         }
 
         function saveSignature() {
-            if (!activeFieldForModal) {
-                const sigField = myFields.find(f => {
-                    const t = f.type || f.field_type || 'signature';
-                    return t === 'signature' || t === 'initial' || t === 'initials';
-                });
-                if (sigField) activeFieldForModal = sigField.id;
-            }
             if (!activeFieldForModal) return;
-
             let resultDataUri = '';
 
             if (activeTab === 'draw') {
                 if (!hasDrawn) {
-                    alert('Please draw your signature in the box before adopting.');
+                    alert('Please draw your signature before adopting.');
                     return;
                 }
                 resultDataUri = sigCanvas.toDataURL('image/png');
             } else if (activeTab === 'type') {
                 // Convert typed font to canvas image
-                const text = (document.getElementById('typedNameInput').value || signerInfo.name || 'Signer').trim();
+                const text = document.getElementById('typedNameInput').value || signerInfo.name;
                 const tempCanvas = document.createElement('canvas');
                 tempCanvas.width = 460;
                 tempCanvas.height = 140;
@@ -439,30 +337,14 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                 resultDataUri = tempCanvas.toDataURL('image/png');
             } else if (activeTab === 'upload') {
                 if (!uploadedDataUri) {
-                    alert('Please select and upload a signature image file first.');
+                    alert('Please choose an image file first.');
                     return;
                 }
                 resultDataUri = uploadedDataUri;
             }
 
-            if (!resultDataUri) return;
-
-            const selectedType = (activeTab === 'type' ? 'typed' : (activeTab === 'upload' ? 'uploaded' : 'drawn'));
-
             fieldValues[activeFieldForModal] = resultDataUri;
-            signatureTypes[activeFieldForModal] = selectedType;
             updateFieldUI(activeFieldForModal, resultDataUri);
-
-            // Also auto-fill any other empty signature fields for this signer
-            myFields.forEach(f => {
-                const ft = f.type || f.field_type || 'signature';
-                if ((ft === 'signature' || ft === 'initial' || ft === 'initials') && (!fieldValues[f.id] || fieldValues[f.id] === '')) {
-                    fieldValues[f.id] = resultDataUri;
-                    signatureTypes[f.id] = selectedType;
-                    updateFieldUI(f.id, resultDataUri);
-                }
-            });
-
             closeSignatureModal();
             updateProgress();
             focusNextField();
@@ -474,11 +356,10 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
 
             if (value && value.startsWith('data:image/')) {
                 fieldEl.innerHTML = `
-                    <div class="w-full h-full bg-white/95 border-2 border-teal-600 rounded-xl p-1 relative flex items-center justify-center overflow-hidden shadow-sm group cursor-pointer hover:border-teal-700 transition-all">
+                    <div class="w-full h-full bg-teal-50/90 border-2 border-teal-500 rounded-lg p-1 relative flex items-center justify-center overflow-hidden shadow-sm group">
                         <img src="${value}" class="max-w-full max-h-full object-contain pointer-events-none" />
-                        <span class="absolute inset-0 bg-teal-950/70 text-white font-bold text-xs flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[1px]">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                            Click to Edit / Change
+                        <span class="absolute inset-0 bg-teal-900/40 text-white font-bold text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            Change
                         </span>
                     </div>
                 `;
@@ -488,37 +369,22 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
         function updateProgress() {
             let completed = 0;
             myFields.forEach(f => {
-                const ft = f.type || f.field_type || 'signature';
-                const isSig = (ft === 'signature' || ft === 'initial' || ft === 'initials');
                 const val = fieldValues[f.id];
-
-                if (isSig) {
-                    if (val && String(val).startsWith('data:image/')) {
-                        completed++;
-                    }
-                } else {
-                    if (val && String(val).trim() !== '') {
-                        completed++;
-                    }
+                if (val && String(val).trim() !== '') {
+                    completed++;
                 }
             });
 
             document.getElementById('completedCount').textContent = completed;
             const allCompleted = (completed >= myFields.length);
             const finishBtn = document.getElementById('finishBtn');
-            if (finishBtn) {
-                finishBtn.disabled = !allCompleted;
-            }
+            finishBtn.disabled = !allCompleted;
         }
 
         function focusNextField() {
             for (const f of myFields) {
-                const ft = f.type || f.field_type || 'signature';
-                const isSig = (ft === 'signature' || ft === 'initial' || ft === 'initials');
                 const val = fieldValues[f.id];
-                const isDone = isSig ? (val && String(val).startsWith('data:image/')) : (val && String(val).trim() !== '');
-
-                if (!isDone) {
+                if (!val || String(val).trim() === '') {
                     const el = document.getElementById('field-widget-' + f.id);
                     if (el) {
                         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -551,59 +417,19 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
         }
 
         function submitSigningForm() {
-            let missingCount = 0;
-            let firstMissing = null;
-
-            for (const f of myFields) {
-                const ft = f.type || f.field_type || 'signature';
-                const isSig = (ft === 'signature' || ft === 'initial' || ft === 'initials');
-                const val = fieldValues[f.id];
-                const isDone = isSig ? (val && String(val).startsWith('data:image/')) : (val && String(val).trim() !== '');
-
-                if (!isDone) {
-                    missingCount++;
-                    if (!firstMissing) firstMissing = f;
-                }
-            }
-
-            if (missingCount > 0) {
-                if (firstMissing) {
-                    const ft = firstMissing.type || firstMissing.field_type || 'signature';
-                    if (ft === 'signature' || ft === 'initial' || ft === 'initials') {
-                        openSignatureModal(firstMissing.id, ft);
-                    } else {
-                        focusNextField();
-                    }
-                }
-                return;
-            }
-
             const payload = [];
             for (const f of myFields) {
                 payload.push({
                     field_id: f.id,
-                    value: fieldValues[f.id] || '',
-                    type: (f.type || f.field_type || 'signature'),
-                    sig_type: (signatureTypes[f.id] || 'drawn')
+                    value: fieldValues[f.id] || ''
                 });
             }
 
-            const jsonStr = JSON.stringify(payload);
-            document.getElementById('submissionFieldsJson').value = jsonStr;
-            const fieldsInput = document.getElementById('submissionFields');
-            if (fieldsInput) fieldsInput.value = jsonStr;
+            document.getElementById('submissionFieldsJson').value = JSON.stringify(payload);
             document.getElementById('finishBtn').disabled = true;
             document.getElementById('finishBtnText').textContent = 'Sealing Document...';
             document.getElementById('submissionForm').submit();
         }
-
-        // Global keyboard shortcut: Escape to close modals
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeSignatureModal();
-                closeDeclineModal();
-            }
-        });
 
         // PDF.js rendering pipeline
         if (typeof pdfjsLib !== 'undefined') {
@@ -619,13 +445,6 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
 
                 const container = document.getElementById('pdfPagesContainer');
                 container.innerHTML = '';
-
-                // Ensure any auto-generated fields are placed on the final page (where Authorized Signature Area is)
-                myFields.forEach(f => {
-                    if (f.is_auto) {
-                        f.page = pdf.numPages;
-                    }
-                });
 
                 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                     const page = await pdf.getPage(pageNum);
@@ -662,9 +481,6 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                 }
 
                 updateProgress();
-
-                // Automatically scroll and draw attention to the first signature field
-                setTimeout(() => focusNextField(), 500);
             } catch (err) {
                 console.error('PDF load error:', err);
                 document.getElementById('pdfLoading').innerHTML = `
@@ -678,54 +494,44 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
         }
 
         function renderPageFields(pageNum, overlayContainer) {
-            const pageFields = myFields.filter(f => parseInt(f.page || f.page_number || 1) === pageNum);
+            const pageFields = myFields.filter(f => parseInt(f.page_number) === pageNum);
 
             pageFields.forEach(f => {
                 const widget = document.createElement('div');
                 widget.id = 'field-widget-' + f.id;
                 widget.className = 'absolute pointer-events-auto cursor-pointer transition-all';
-                widget.style.left = (f.position_x || 10) + '%';
-                widget.style.top = (f.position_y || 80) + '%';
-                widget.style.width = (f.width || 24) + '%';
-                widget.style.height = (f.height || 8) + '%';
+                widget.style.left = f.position_x + '%';
+                widget.style.top = f.position_y + '%';
+                widget.style.width = f.width + '%';
+                widget.style.height = f.height + '%';
 
-                const fieldType = f.type || f.field_type || 'signature';
-                const isSigType = (fieldType === 'signature' || fieldType === 'initial' || fieldType === 'initials');
+                const isSigType = (f.field_type === 'signature' || f.field_type === 'initial');
 
                 if (isSigType) {
-                    const label = (fieldType === 'initial' || fieldType === 'initials') ? 'Initial' : 'Signature';
+                    const label = (f.field_type === 'initial') ? 'Initial' : 'Sign';
                     widget.innerHTML = `
-                        <div class="w-full h-full bg-teal-500/15 hover:bg-teal-500/25 border-2 border-teal-600 border-dashed rounded-xl flex items-center justify-center text-teal-950 gap-2 p-2 shadow-sm transition-all group animate-pulse hover:border-teal-700 hover:shadow-md cursor-pointer">
-                            <svg class="w-5 h-5 text-teal-600 group-hover:scale-110 transition-transform shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <div class="w-full h-full bg-teal-500/10 hover:bg-teal-500/20 border-2 border-teal-600 border-dashed rounded-lg flex items-center justify-center text-teal-800 gap-1.5 p-1 shadow-sm transition-all group">
+                            <svg class="w-4 h-4 text-teal-600 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                             </svg>
-                            <div class="flex flex-col items-start leading-tight">
-                                <span class="text-xs font-black uppercase tracking-wider text-teal-950">Click to ${label} Here</span>
-                                <span class="text-[10px] text-teal-700 font-semibold">Draw, Type or Upload</span>
-                            </div>
+                            <span class="text-xs font-extrabold uppercase tracking-wider">${label} Here</span>
                         </div>
                     `;
-                    widget.onclick = (e) => {
-                        e.stopPropagation();
-                        openSignatureModal(f.id, fieldType);
-                    };
-                } else if (fieldType === 'date') {
+                    widget.onclick = () => openSignatureModal(f.id, f.field_type);
+                } else if (f.field_type === 'date') {
                     const today = new Date().toISOString().split('T')[0];
-                    if (!fieldValues[f.id]) {
-                        fieldValues[f.id] = today;
-                    }
+                    fieldValues[f.id] = today;
                     widget.innerHTML = `
-                        <input type="date" value="${fieldValues[f.id]}" onchange="fieldValues[${f.id}] = this.value; updateProgress()" class="w-full h-full text-xs font-bold text-slate-800 bg-white/95 border border-slate-300 rounded px-2 shadow-sm focus:outline-none focus:border-teal-600" />
+                        <input type="date" value="${today}" onchange="fieldValues[${f.id}] = this.value; updateProgress()" class="w-full h-full text-xs font-bold text-slate-800 bg-white/95 border border-slate-300 rounded px-2 shadow-sm focus:outline-none focus:border-teal-600" />
                     `;
-                } else if (fieldType === 'text') {
+                } else if (f.field_type === 'text') {
                     widget.innerHTML = `
-                        <input type="text" value="${fieldValues[f.id] || ''}" placeholder="${f.custom_text || f.custom_label || 'Enter text...'}" oninput="fieldValues[${f.id}] = this.value; updateProgress()" class="w-full h-full text-xs text-slate-800 bg-white/95 border border-slate-300 rounded px-2 shadow-sm focus:outline-none focus:border-teal-600" />
+                        <input type="text" placeholder="${f.custom_label || 'Enter text...'}" oninput="fieldValues[${f.id}] = this.value; updateProgress()" class="w-full h-full text-xs text-slate-800 bg-white/95 border border-slate-300 rounded px-2 shadow-sm focus:outline-none focus:border-teal-600" />
                     `;
-                } else if (fieldType === 'checkbox') {
-                    const isChecked = fieldValues[f.id] ? 'checked' : '';
+                } else if (f.field_type === 'checkbox') {
                     widget.innerHTML = `
                         <div class="w-full h-full flex items-center justify-center bg-white/80 border border-slate-300 rounded">
-                            <input type="checkbox" ${isChecked} onchange="fieldValues[${f.id}] = this.checked ? '1' : ''; updateProgress()" class="w-5 h-5 text-teal-600 rounded cursor-pointer" />
+                            <input type="checkbox" onchange="fieldValues[${f.id}] = this.checked ? '1' : ''; updateProgress()" class="w-5 h-5 text-teal-600 rounded cursor-pointer" />
                         </div>
                     `;
                 }
@@ -739,14 +545,14 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
             });
 
             // Display placeholder boxes for other signers
-            const otherFields = allFields.filter(f => parseInt(f.page || f.page_number || 1) === pageNum && parseInt(f.signer_id) !== parseInt(signerInfo.id));
+            const otherFields = allFields.filter(f => parseInt(f.page_number) === pageNum && parseInt(f.signer_id) !== parseInt(signerInfo.id));
             otherFields.forEach(f => {
                 const widget = document.createElement('div');
                 widget.className = 'absolute pointer-events-none opacity-60';
-                widget.style.left = (f.position_x || 10) + '%';
-                widget.style.top = (f.position_y || 80) + '%';
-                widget.style.width = (f.width || 24) + '%';
-                widget.style.height = (f.height || 8) + '%';
+                widget.style.left = f.position_x + '%';
+                widget.style.top = f.position_y + '%';
+                widget.style.width = f.width + '%';
+                widget.style.height = f.height + '%';
                 widget.innerHTML = `
                     <div class="w-full h-full bg-slate-200/50 border border-slate-300 border-dashed rounded-lg flex items-center justify-center text-slate-500 text-[10px] font-semibold">
                         Awaiting Co-Signer

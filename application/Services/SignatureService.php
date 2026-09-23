@@ -123,83 +123,37 @@ class SignatureService
             }
 
             // Save fields
-            if (empty($fieldsData)) {
-                // If no manual drag-and-drop fields were placed, automatically provide default signature & date fields
-                // placed directly over the "AUTHORIZED SIGNATURE AREA" on the last page of the document
-                $targetPage = 1;
-                $filePath = FileStorageService::resolvePath((string)$doc['stored_path'], (string)$doc['filename']);
-                if (is_file($filePath)) {
-                    try {
-                        $fpdi = new \setasign\Fpdi\Fpdi();
-                        $targetPage = max(1, $fpdi->setSourceFile($filePath));
-                    } catch (\Throwable $e) {
-                        $targetPage = 1;
-                    }
+            foreach ($fieldsData as $f) {
+                // Determine mapped signer ID
+                $signerId = 0;
+                if (isset($f['signer_index']) && isset($createdSigners[$f['signer_index']])) {
+                    $signerId = (int)$createdSigners[$f['signer_index']]['id'];
+                } elseif (isset($f['signer_key']) && isset($createdSigners[$f['signer_key']])) {
+                    $signerId = (int)$createdSigners[$f['signer_key']]['id'];
+                } elseif (isset($f['signer_id']) && $f['signer_id'] > 0) {
+                    $signerId = (int)$f['signer_id'];
+                } else {
+                    // Default to first signer
+                    $first = reset($createdSigners);
+                    $signerId = $first ? (int)$first['id'] : 0;
                 }
 
-                foreach ($createdSigners as $createdSigner) {
-                    $signerId = (int)$createdSigner['id'];
-                    // Signature field on Authorized Signature Area
-                    $sigFieldModel->create([
-                        'request_id'  => $requestId,
-                        'signer_id'   => $signerId,
-                        'type'        => 'signature',
-                        'page'        => $targetPage,
-                        'position_x'  => 8.0,
-                        'position_y'  => 70.5,
-                        'width'       => 45.0,
-                        'height'      => 9.5,
-                        'custom_text' => null,
-                        'required'    => 1,
-                    ]);
-
-                    // Date field in Authorized Signature Area
-                    $sigFieldModel->create([
-                        'request_id'  => $requestId,
-                        'signer_id'   => $signerId,
-                        'type'        => 'date',
-                        'page'        => $targetPage,
-                        'position_x'  => 62.0,
-                        'position_y'  => 78.5,
-                        'width'       => 25.0,
-                        'height'      => 5.0,
-                        'custom_text' => date('d/m/Y'),
-                        'required'    => 1,
-                    ]);
+                if ($signerId <= 0) {
+                    continue;
                 }
-            } else {
-                foreach ($fieldsData as $f) {
-                    // Determine mapped signer ID
-                    $signerId = 0;
-                    if (isset($f['signer_index']) && isset($createdSigners[$f['signer_index']])) {
-                        $signerId = (int)$createdSigners[$f['signer_index']]['id'];
-                    } elseif (isset($f['signer_key']) && isset($createdSigners[$f['signer_key']])) {
-                        $signerId = (int)$createdSigners[$f['signer_key']]['id'];
-                    } elseif (isset($f['signer_id']) && $f['signer_id'] > 0) {
-                        $signerId = (int)$f['signer_id'];
-                    } else {
-                        // Default to first signer
-                        $first = reset($createdSigners);
-                        $signerId = $first ? (int)$first['id'] : 0;
-                    }
 
-                    if ($signerId <= 0) {
-                        continue;
-                    }
-
-                    $sigFieldModel->create([
-                        'request_id'  => $requestId,
-                        'signer_id'   => $signerId,
-                        'type'        => $f['type'] ?? 'signature',
-                        'page'        => max(1, (int)($f['page'] ?? 1)),
-                        'position_x'  => (float)($f['position_x'] ?? 10.0),
-                        'position_y'  => (float)($f['position_y'] ?? 80.0),
-                        'width'       => (float)($f['width'] ?? 24.0),
-                        'height'      => (float)($f['height'] ?? 8.0),
-                        'custom_text' => !empty($f['custom_text']) ? (string)$f['custom_text'] : null,
-                        'required'    => isset($f['required']) ? (int)(bool)$f['required'] : 1,
-                    ]);
-                }
+                $sigFieldModel->create([
+                    'request_id'  => $requestId,
+                    'signer_id'   => $signerId,
+                    'type'        => $f['type'] ?? 'signature',
+                    'page'        => max(1, (int)($f['page'] ?? 1)),
+                    'position_x'  => (float)($f['position_x'] ?? 10.0),
+                    'position_y'  => (float)($f['position_y'] ?? 80.0),
+                    'width'       => (float)($f['width'] ?? 24.0),
+                    'height'      => (float)($f['height'] ?? 8.0),
+                    'custom_text' => !empty($f['custom_text']) ? (string)$f['custom_text'] : null,
+                    'required'    => isset($f['required']) ? (int)(bool)$f['required'] : 1,
+                ]);
             }
 
             // Audit log
@@ -381,55 +335,6 @@ class SignatureService
 
         // Load fields for this signer and for the whole document (for viewing placeholders)
         $myFields = $sigFieldModel->getBySignerId((int)$signer['id']);
-
-        // Auto-heal / Ensure default signature field in Authorized Signature Area exists for this signer
-        if (empty($myFields)) {
-            $targetPage = 1;
-            $docModel = new Document();
-            $doc = $docModel->find((int)$request['document_id']);
-            if ($doc) {
-                $filePath = FileStorageService::resolvePath((string)$doc['stored_path'], (string)$doc['filename']);
-                if (is_file($filePath)) {
-                    try {
-                        $fpdi = new \setasign\Fpdi\Fpdi();
-                        $targetPage = max(1, $fpdi->setSourceFile($filePath));
-                    } catch (\Throwable $e) {
-                        $targetPage = 1;
-                    }
-                }
-            }
-
-            // Create signature field in Authorized Signature Area
-            $sigFieldModel->create([
-                'request_id'  => $requestId,
-                'signer_id'   => (int)$signer['id'],
-                'type'        => 'signature',
-                'page'        => $targetPage,
-                'position_x'  => 8.0,
-                'position_y'  => 70.5,
-                'width'       => 45.0,
-                'height'      => 9.5,
-                'custom_text' => null,
-                'required'    => 1,
-            ]);
-
-            // Create date field in Authorized Signature Area
-            $sigFieldModel->create([
-                'request_id'  => $requestId,
-                'signer_id'   => (int)$signer['id'],
-                'type'        => 'date',
-                'page'        => $targetPage,
-                'position_x'  => 62.0,
-                'position_y'  => 78.5,
-                'width'       => 25.0,
-                'height'      => 5.0,
-                'custom_text' => date('d/m/Y'),
-                'required'    => 1,
-            ]);
-
-            $myFields = $sigFieldModel->getBySignerId((int)$signer['id']);
-        }
-
         $allFields = $sigFieldModel->getByRequestId($requestId);
 
         return [
@@ -471,17 +376,8 @@ class SignatureService
 
         $myFields = $sigFieldModel->getBySignerId($signerId);
         $myFieldsById = [];
-        $firstSigField = null;
-        $firstDateField = null;
         foreach ($myFields as $f) {
             $myFieldsById[(int)$f['id']] = $f;
-            $ft = $f['type'] ?? '';
-            if (($ft === 'signature' || $ft === 'initial' || $ft === 'initials') && !$firstSigField) {
-                $firstSigField = $f;
-            }
-            if ($ft === 'date' && !$firstDateField) {
-                $firstDateField = $f;
-            }
         }
 
         $db = Database::getInstance();
@@ -489,20 +385,8 @@ class SignatureService
 
         try {
             // Process each submitted field
-            foreach ($fieldSubmissions as $k => $data) {
-                $rawId = is_array($data) ? ($data['field_id'] ?? $data['id'] ?? $k) : $k;
-                $fieldId = (int)$rawId;
-
-                // If non-numeric or not in database, fallback to matching by type
-                if ($fieldId <= 0 || !isset($myFieldsById[$fieldId])) {
-                    $dataType = is_array($data) ? ($data['type'] ?? '') : '';
-                    if ($dataType === 'date' && $firstDateField) {
-                        $fieldId = (int)$firstDateField['id'];
-                    } elseif ($firstSigField) {
-                        $fieldId = (int)$firstSigField['id'];
-                    }
-                }
-
+            foreach ($fieldSubmissions as $fieldId => $data) {
+                $fieldId = (int)$fieldId;
                 if (!isset($myFieldsById[$fieldId])) {
                     continue; // Ignore fields that do not belong to this signer
                 }
@@ -514,25 +398,18 @@ class SignatureService
                 $sigType = null;
                 $customText = null;
 
-                if ($type === 'signature' || $type === 'initials' || $type === 'initial') {
-                    $sigData = is_array($data) ? (string)($data['value'] ?? '') : (string)$data;
-                    $rawType = is_array($data) ? (string)($data['sig_type'] ?? ($data['type'] ?? 'drawn')) : 'drawn';
-                    $sigType = in_array($rawType, ['drawn', 'typed', 'uploaded'], true) ? $rawType : 'drawn';
+                if ($type === 'signature' || $type === 'initials') {
+                    $sigData = (string)($data['value'] ?? '');
+                    $sigType = (string)($data['type'] ?? 'drawn');
                     if (empty($sigData)) {
                         continue;
                     }
                 } elseif ($type === 'date') {
-                    $val = is_array($data) ? ($data['value'] ?? '') : $data;
-                    $customText = !empty($val) ? trim((string)$val) : date('d/m/Y');
-                    $sigType = 'drawn';
+                    $customText = !empty($data['value']) ? trim((string)$data['value']) : date('d/m/Y');
                 } elseif ($type === 'checkbox') {
-                    $val = is_array($data) ? ($data['value'] ?? '') : $data;
-                    $customText = !empty($val) ? '1' : '0';
-                    $sigType = 'drawn';
+                    $customText = !empty($data['value']) ? '1' : '0';
                 } else {
-                    $val = is_array($data) ? ($data['value'] ?? '') : $data;
-                    $customText = trim((string)$val);
-                    $sigType = 'drawn';
+                    $customText = trim((string)($data['value'] ?? ''));
                 }
 
                 $sigFieldModel->saveFieldValue($fieldId, $sigData, $sigType, $customText);
