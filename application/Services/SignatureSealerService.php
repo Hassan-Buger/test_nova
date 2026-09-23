@@ -695,6 +695,8 @@ class SignatureSealerService
                 $email = $signer['email'];
                 $signerName = $signer['name'];
                 $subject = "Completed: {$title} has been signed";
+                $baseUrl = rtrim(\Application\Config\App::get('url'), '/');
+                $downloadUrl = "{$baseUrl}/documents/download/{$signedDocId}";
                 $html = "
                     <div style='font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b;'>
                         <h2 style='color: #0f172a;'>Document Signed & Completed</h2>
@@ -702,7 +704,7 @@ class SignatureSealerService
                         <p>All signers have completed signing <strong>{$title}</strong>.</p>
                         <p>A tamper-evident Certificate of Completion has been attached to the final executed PDF.</p>
                         <p style='margin: 24px 0;'>
-                            <a href='/documents/download/{$signedDocId}' style='background: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Download Signed PDF</a>
+                            <a href='{$downloadUrl}' style='background: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Download Signed PDF</a>
                         </p>
                         <p style='color: #64748b; font-size: 13px;'>TriNova Accounting Client Portal</p>
                     </div>

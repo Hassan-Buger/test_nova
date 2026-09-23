@@ -204,7 +204,7 @@ class ClientController extends Controller
             $this->createInlineDeadlines($clientId, $entityId, $body);
         }
 
-        $appUrl = \Application\Config\App::get('url', 'https://white-bison-201906.hostingersite.com');
+        $appUrl = \Application\Config\App::get('url');
         $activationLink = rtrim($appUrl, '/') . '/activate?token=' . urlencode($activationToken);
 
         $emailSent = false;

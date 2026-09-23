@@ -241,7 +241,8 @@ class SignatureService
         $signerName = $signer['name'];
         $email = $signer['email'];
 
-        $signUrl = "/sign/{$token}";
+        $baseUrl = rtrim(\Application\Config\App::get('url'), '/');
+        $signUrl = "{$baseUrl}/sign/{$token}";
 
         // Send transactional email via NotificationService
         $subject = "Signature Requested: {$title}";

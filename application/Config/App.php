@@ -16,9 +16,19 @@ class App
             $autoUrl = 'https://' . $_ENV['RAILWAY_STATIC_URL'];
         }
 
+        $envUrl = trim((string)($_ENV['APP_URL'] ?? ''));
+        // If APP_URL is empty or still set to a template/placeholder domain, fall back to active host or Railway domain
+        $isPlaceholder = empty($envUrl) 
+            || str_contains($envUrl, 'portal.trinova.co.uk') 
+            || str_contains($envUrl, 'your-domain.up.railway.app')
+            || str_contains($envUrl, 'your-temp-domain.com')
+            || str_contains($envUrl, 'white-bison');
+
+        $resolvedUrl = (!$isPlaceholder && !empty($envUrl)) ? $envUrl : $autoUrl;
+
         $config = [
             'name' => 'TriNova Accounting',
-            'url' => rtrim($_ENV['APP_URL'] ?? $autoUrl, '/') . '/',
+            'url' => rtrim($resolvedUrl, '/') . '/',
             'env' => $_ENV['APP_ENV'] ?? (isset($_ENV['RAILWAY_ENVIRONMENT']) ? 'production' : 'local'),
             'debug' => ($_ENV['APP_DEBUG'] ?? 'false') === 'true',
             'secret' => $_ENV['APP_SECRET'] ?? 'trinova_default_secret_key_32bytes!',
