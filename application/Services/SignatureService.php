@@ -386,7 +386,7 @@ class SignatureService
         try {
             // Process each submitted field
             foreach ($fieldSubmissions as $k => $data) {
-                $fieldId = (int)(is_array($data) && isset($data['field_id']) ? $data['field_id'] : $k);
+                $fieldId = (int)(is_array($data) ? ($data['field_id'] ?? $data['id'] ?? $k) : $k);
                 if (!isset($myFieldsById[$fieldId])) {
                     continue; // Ignore fields that do not belong to this signer
                 }

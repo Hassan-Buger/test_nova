@@ -78,16 +78,35 @@ class SigningController extends Controller
         $body = $request->getBody();
         $fields = $body['fields'] ?? null;
 
-        if (empty($fields) && !empty($body['fields_json'])) {
-            $fields = json_decode((string)$body['fields_json'], true) ?: [];
+        // If $fields is passed as a JSON string, decode it
+        if (is_string($fields)) {
+            $trimmed = trim($fields);
+            if (str_starts_with($trimmed, '[') || str_starts_with($trimmed, '{')) {
+                $decoded = json_decode($trimmed, true);
+                if (is_array($decoded)) {
+                    $fields = $decoded;
+                }
+            }
         }
 
-        if (empty($fields)) {
+        // If not yet an array or empty, try fields_json
+        if ((!is_array($fields) || empty($fields)) && !empty($body['fields_json'])) {
+            $rawJson = trim((string)$body['fields_json']);
+            if (str_starts_with($rawJson, '[') || str_starts_with($rawJson, '{')) {
+                $decoded = json_decode($rawJson, true);
+                if (is_array($decoded)) {
+                    $fields = $decoded;
+                }
+            }
+        }
+
+        // If still not an array or empty, try json request body
+        if (!is_array($fields) || empty($fields)) {
             $json = $request->getJsonBody();
-            if (!empty($json['fields']) && is_array($json['fields'])) {
-                $fields = $json['fields'];
+            if (!empty($json['fields'])) {
+                $fields = is_string($json['fields']) ? json_decode($json['fields'], true) : $json['fields'];
             } elseif (!empty($json['fields_json'])) {
-                $fields = is_string($json['fields_json']) ? json_decode($json['fields_json'], true) : (array)$json['fields_json'];
+                $fields = is_string($json['fields_json']) ? json_decode($json['fields_json'], true) : $json['fields_json'];
             }
         }
 

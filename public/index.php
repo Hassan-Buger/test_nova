@@ -123,6 +123,9 @@ $app->router->post('/api/notifications/mark-as-read', [NotificationController::c
 $app->router->get('/sign/{token}', [SigningController::class, 'showSign']);
 $app->router->get('/sign/{token}/pdf', [SigningController::class, 'streamPdf']);
 $app->router->post('/sign/{token}/submit', [SigningController::class, 'submitSign']);
+$app->router->get('/sign/{token}/submit', function($request, $response, $token) {
+    $response->redirect("/sign/{$token}");
+});
 $app->router->post('/sign/{token}/decline', [SigningController::class, 'decline']);
 $app->router->post('/sign/{token}/resend', [SigningController::class, 'resendInvite']);
 $app->router->get('/sign/{token}/resend', [SigningController::class, 'resendInvite']);
