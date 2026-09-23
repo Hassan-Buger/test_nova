@@ -77,7 +77,7 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                         Next Field &darr;
                     </button>
 
-                    <button type="button" id="finishBtn" onclick="submitSigningForm()" class="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm shadow-md shadow-teal-600/20 flex items-center gap-2 transition-all">
+                    <button type="button" id="finishBtn" disabled onclick="submitSigningForm()" class="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm shadow-md shadow-teal-600/20 flex items-center gap-2 transition-all">
                         <span id="finishBtnText">Finish & Sign Document</span>
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -201,8 +201,10 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
 
         // State tracking
         const fieldValues = {};
+        const signatureTypes = {};
         myFields.forEach(f => {
             fieldValues[f.id] = f.signature_data || f.custom_text || f.field_value || '';
+            signatureTypes[f.id] = f.signature_type || 'drawn';
         });
 
         let activeFieldForModal = null;
@@ -344,6 +346,7 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
             }
 
             fieldValues[activeFieldForModal] = resultDataUri;
+            signatureTypes[activeFieldForModal] = (activeTab === 'type' ? 'typed' : (activeTab === 'upload' ? 'uploaded' : 'drawn'));
             updateFieldUI(activeFieldForModal, resultDataUri);
             closeSignatureModal();
             updateProgress();
@@ -417,12 +420,28 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
         }
 
         function submitSigningForm() {
+            // Guard: verify all required fields are filled before submitting
+            let missingCount = 0;
+            for (const f of myFields) {
+                const val = fieldValues[f.id];
+                if (!val || String(val).trim() === '') {
+                    missingCount++;
+                }
+            }
+
+            if (missingCount > 0) {
+                alert('Please sign the document by clicking the "Sign Here" box before finishing.');
+                focusNextField();
+                return;
+            }
+
             const payload = [];
             for (const f of myFields) {
                 payload.push({
                     field_id: f.id,
                     value: fieldValues[f.id] || '',
-                    type: (f.type || f.field_type || 'signature')
+                    type: (f.type || f.field_type || 'signature'),
+                    sig_type: (signatureTypes[f.id] || 'drawn')
                 });
             }
 

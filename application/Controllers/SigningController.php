@@ -103,6 +103,7 @@ class SigningController extends Controller
             $this->render('signing/error', [
                 'pageTitle' => 'Signing Error',
                 'message'   => $e->getMessage(),
+                'token'     => $token,
                 'code'      => 422,
             ], 'clean');
         }

@@ -400,19 +400,23 @@ class SignatureService
 
                 if ($type === 'signature' || $type === 'initials') {
                     $sigData = is_array($data) ? (string)($data['value'] ?? '') : (string)$data;
-                    $sigType = is_array($data) ? (string)($data['type'] ?? 'drawn') : 'drawn';
+                    $rawType = is_array($data) ? (string)($data['sig_type'] ?? ($data['type'] ?? 'drawn')) : 'drawn';
+                    $sigType = in_array($rawType, ['drawn', 'typed', 'uploaded'], true) ? $rawType : 'drawn';
                     if (empty($sigData)) {
                         continue;
                     }
                 } elseif ($type === 'date') {
                     $val = is_array($data) ? ($data['value'] ?? '') : $data;
                     $customText = !empty($val) ? trim((string)$val) : date('d/m/Y');
+                    $sigType = 'drawn';
                 } elseif ($type === 'checkbox') {
                     $val = is_array($data) ? ($data['value'] ?? '') : $data;
                     $customText = !empty($val) ? '1' : '0';
+                    $sigType = 'drawn';
                 } else {
                     $val = is_array($data) ? ($data['value'] ?? '') : $data;
                     $customText = trim((string)$val);
+                    $sigType = 'drawn';
                 }
 
                 $sigFieldModel->saveFieldValue($fieldId, $sigData, $sigType, $customText);
