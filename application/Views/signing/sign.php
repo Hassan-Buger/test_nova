@@ -202,12 +202,37 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
     <script>
         // Data passed from backend
         const signingToken = <?= json_encode($token) ?>;
-        const myFields = <?= json_encode($myFields) ?>;
+        let myFields = <?= json_encode($myFields) ?>;
         const allFields = <?= json_encode($allFields) ?>;
         const signerInfo = <?= json_encode($signer) ?>;
         const pdfUrl = '/sign/' + signingToken + '/pdf';
 
-        // State tracking
+        // Safeguard: if document has no fields defined for this signer, auto-create signature & date fields
+        // placed directly over the "AUTHORIZED SIGNATURE AREA"
+        if (!Array.isArray(myFields) || myFields.length === 0) {
+            myFields = [{
+                id: 'auto_sig_' + (signerInfo.id || '1'),
+                type: 'signature',
+                page: 1, // dynamically updated to pdf.numPages once PDF loads
+                position_x: 8.0,
+                position_y: 70.5,
+                width: 45.0,
+                height: 9.5,
+                required: 1,
+                is_auto: true
+            }, {
+                id: 'auto_date_' + (signerInfo.id || '1'),
+                type: 'date',
+                page: 1,
+                position_x: 62.0,
+                position_y: 78.5,
+                width: 25.0,
+                height: 5.0,
+                required: 1,
+                is_auto: true
+            }];
+        }
+
         const fieldValues = {};
         const signatureTypes = {};
         myFields.forEach(f => {
@@ -449,10 +474,11 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
 
             if (value && value.startsWith('data:image/')) {
                 fieldEl.innerHTML = `
-                    <div class="w-full h-full bg-teal-50/90 border-2 border-teal-500 rounded-lg p-1 relative flex items-center justify-center overflow-hidden shadow-sm group">
+                    <div class="w-full h-full bg-white/95 border-2 border-teal-600 rounded-xl p-1 relative flex items-center justify-center overflow-hidden shadow-sm group cursor-pointer hover:border-teal-700 transition-all">
                         <img src="${value}" class="max-w-full max-h-full object-contain pointer-events-none" />
-                        <span class="absolute inset-0 bg-teal-900/40 text-white font-bold text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            Change
+                        <span class="absolute inset-0 bg-teal-950/70 text-white font-bold text-xs flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[1px]">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            Click to Edit / Change
                         </span>
                     </div>
                 `;
@@ -594,6 +620,13 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                 const container = document.getElementById('pdfPagesContainer');
                 container.innerHTML = '';
 
+                // Ensure any auto-generated fields are placed on the final page (where Authorized Signature Area is)
+                myFields.forEach(f => {
+                    if (f.is_auto) {
+                        f.page = pdf.numPages;
+                    }
+                });
+
                 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                     const page = await pdf.getPage(pageNum);
                     const viewport = page.getViewport({ scale: 1.5 });
@@ -660,16 +693,22 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                 const isSigType = (fieldType === 'signature' || fieldType === 'initial' || fieldType === 'initials');
 
                 if (isSigType) {
-                    const label = (fieldType === 'initial' || fieldType === 'initials') ? 'Initial' : 'Sign';
+                    const label = (fieldType === 'initial' || fieldType === 'initials') ? 'Initial' : 'Signature';
                     widget.innerHTML = `
-                        <div class="w-full h-full bg-teal-500/10 hover:bg-teal-500/20 border-2 border-teal-600 border-dashed rounded-lg flex items-center justify-center text-teal-800 gap-1.5 p-1 shadow-sm transition-all group animate-pulse">
-                            <svg class="w-4 h-4 text-teal-600 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <div class="w-full h-full bg-teal-500/15 hover:bg-teal-500/25 border-2 border-teal-600 border-dashed rounded-xl flex items-center justify-center text-teal-950 gap-2 p-2 shadow-sm transition-all group animate-pulse hover:border-teal-700 hover:shadow-md cursor-pointer">
+                            <svg class="w-5 h-5 text-teal-600 group-hover:scale-110 transition-transform shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                             </svg>
-                            <span class="text-xs font-extrabold uppercase tracking-wider">${label} Here</span>
+                            <div class="flex flex-col items-start leading-tight">
+                                <span class="text-xs font-black uppercase tracking-wider text-teal-950">Click to ${label} Here</span>
+                                <span class="text-[10px] text-teal-700 font-semibold">Draw, Type or Upload</span>
+                            </div>
                         </div>
                     `;
-                    widget.onclick = () => openSignatureModal(f.id, fieldType);
+                    widget.onclick = (e) => {
+                        e.stopPropagation();
+                        openSignatureModal(f.id, fieldType);
+                    };
                 } else if (fieldType === 'date') {
                     const today = new Date().toISOString().split('T')[0];
                     if (!fieldValues[f.id]) {
