@@ -31,6 +31,7 @@ class SigningController extends Controller
             $this->render('signing/error', [
                 'pageTitle' => 'Signature Request Notice',
                 'message'   => $e->getMessage(),
+                'token'     => $token,
                 'code'      => $code,
             ], 'clean');
             return;
@@ -311,4 +312,82 @@ class SigningController extends Controller
             ], 'clean');
         }
     }
+
+    /**
+     * Resend the signature invitation link to the signer's registered email.
+     */
+    public function resendInvite(Request $request, Response $response, string $token): void
+    {
+        $signer = (new SignatureSigner())->findByToken($token);
+        if (!$signer) {
+            $this->render('signing/error', [
+                'pageTitle' => 'Invalid Link',
+                'message'   => 'Could not find a signature request associated with this link.',
+                'token'     => $token,
+                'code'      => 404,
+            ], 'clean');
+            return;
+        }
+
+        $sigRequest = (new SignatureRequest())->find((int)$signer['request_id']);
+        if (!$sigRequest) {
+            $this->render('signing/error', [
+                'pageTitle' => 'Document Not Found',
+                'message'   => 'The associated document request is no longer available.',
+                'token'     => $token,
+                'code'      => 404,
+            ], 'clean');
+            return;
+        }
+
+        // If signer already completed, redirect to completed screen
+        if ($signer['status'] === 'signed') {
+            $response->redirect("/sign/{$token}/completed");
+            return;
+        }
+
+        try {
+            SignatureService::sendSingleSignerInvite($sigRequest, $signer);
+
+            (new SignatureAuditEvent())->log(
+                (int)$sigRequest['id'],
+                'signer_requested_link',
+                "Signer {$signer['name']} requested a new signature link dispatched to {$signer['email']}.",
+                (int)$signer['id'],
+                null,
+                $request->getIp(),
+                $_SERVER['HTTP_USER_AGENT'] ?? null
+            );
+
+            if ($request->isAjax()) {
+                $response->json([
+                    'success' => true,
+                    'message' => "A new signature link has been sent to {$signer['email']}.",
+                ]);
+                return;
+            }
+
+            $this->render('signing/error', [
+                'pageTitle'     => 'Invitation Dispatched',
+                'message'       => "A fresh signature link has been sent to {$signer['email']}. Please check your inbox or spam folder.",
+                'token'         => $token,
+                'resentSuccess' => true,
+                'signerEmail'   => $signer['email'],
+                'code'          => 200,
+            ], 'clean');
+        } catch (Throwable $e) {
+            if ($request->isAjax()) {
+                $response->json(['success' => false, 'message' => $e->getMessage()], 500);
+                return;
+            }
+
+            $this->render('signing/error', [
+                'pageTitle' => 'Error Sending Link',
+                'message'   => 'We were unable to resend the signing link: ' . $e->getMessage(),
+                'token'     => $token,
+                'code'      => 500,
+            ], 'clean');
+        }
+    }
 }
+

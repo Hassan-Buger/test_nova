@@ -124,6 +124,8 @@ $app->router->get('/sign/{token}', [SigningController::class, 'showSign']);
 $app->router->get('/sign/{token}/pdf', [SigningController::class, 'streamPdf']);
 $app->router->post('/sign/{token}/submit', [SigningController::class, 'submitSign']);
 $app->router->post('/sign/{token}/decline', [SigningController::class, 'decline']);
+$app->router->post('/sign/{token}/resend', [SigningController::class, 'resendInvite']);
+$app->router->get('/sign/{token}/resend', [SigningController::class, 'resendInvite']);
 $app->router->get('/sign/{token}/completed', [SigningController::class, 'showCompleted']);
 $app->router->get('/sign/{token}/download', [SigningController::class, 'download']);
 $app->router->get('/verify/signature/{token}', [SigningController::class, 'verify']);
