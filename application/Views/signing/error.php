@@ -18,11 +18,62 @@
         </p>
 
         <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-500 mb-6">
-            For security, signing links are one-time use tokens bound to specific authorized signatories. If you believe this is an error, please ask your TriNova contact to resend the signature invitation.
+            For security, signing links are one-time use tokens bound to specific authorized signatories. If your link expired or you encountered an error, you can request a fresh link below.
         </div>
 
-        <a href="/login" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm transition-all">
-            Return to TriNova Portal
-        </a>
+        <?php if (!empty($token)): ?>
+            <div class="mb-6">
+                <button type="button" id="resendBtn" onclick="requestResendLink()" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm shadow-md shadow-teal-600/20 transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span id="resendBtnText">Send New Link to My Email</span>
+                </button>
+                <div id="resendFeedback" class="hidden mt-3 text-xs font-semibold"></div>
+            </div>
+
+            <script>
+                function requestResendLink() {
+                    const btn = document.getElementById('resendBtn');
+                    const btnText = document.getElementById('resendBtnText');
+                    const feedback = document.getElementById('resendFeedback');
+                    
+                    btn.disabled = true;
+                    btnText.textContent = 'Sending invitation...';
+
+                    fetch('/sign/<?= htmlspecialchars($token) ?>/resend', {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        feedback.classList.remove('hidden');
+                        if (data.success) {
+                            feedback.className = 'mt-3 text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg p-3';
+                            feedback.textContent = data.message || 'A fresh signature link has been sent to your email!';
+                            btnText.textContent = 'Invitation Sent';
+                        } else {
+                            feedback.className = 'mt-3 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3';
+                            feedback.textContent = data.message || 'Could not send link. Please contact your TriNova account manager.';
+                            btn.disabled = false;
+                            btnText.textContent = 'Retry Sending Link';
+                        }
+                    })
+                    .catch(() => {
+                        feedback.classList.remove('hidden');
+                        feedback.className = 'mt-3 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3';
+                        feedback.textContent = 'Network error. Please try again.';
+                        btn.disabled = false;
+                        btnText.textContent = 'Retry Sending Link';
+                    });
+                }
+            </script>
+        <?php endif; ?>
+
+        <div>
+            <a href="/login" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm transition-all">
+                Return to TriNova Portal
+            </a>
+        </div>
     </div>
 </div>

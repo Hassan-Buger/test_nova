@@ -32,6 +32,7 @@ class SigningController extends Controller
                 'pageTitle' => 'Signature Request Notice',
                 'message'   => $e->getMessage(),
                 'code'      => $code,
+                'token'     => $token,
             ], 'clean');
             return;
         }
@@ -71,14 +72,37 @@ class SigningController extends Controller
      */
     public function submitSign(Request $request, Response $response, string $token): void
     {
+        // If accessed directly via GET, redirect back to signing screen
+        if ($request->getMethod() === 'GET') {
+            $response->redirect("/sign/{$token}");
+            return;
+        }
+
         $ip = $request->getIp();
         $ua = $_SERVER['HTTP_USER_AGENT'] ?? null;
 
         $body = $request->getBody();
-        $fields = $body['fields'] ?? [];
+        $fields = $body['fields'] ?? null;
+
+        if (empty($fields) && !empty($body['fields_json'])) {
+            $fields = json_decode((string)$body['fields_json'], true) ?: [];
+        }
+
+        if (is_string($fields)) {
+            $fields = json_decode($fields, true) ?: [];
+        }
+
+        if (empty($fields)) {
+            $json = $request->getJsonBody();
+            if (!empty($json['fields']) && is_array($json['fields'])) {
+                $fields = $json['fields'];
+            } elseif (!empty($json['fields_json'])) {
+                $fields = is_string($json['fields_json']) ? json_decode($json['fields_json'], true) : (array)$json['fields_json'];
+            }
+        }
 
         if (!is_array($fields)) {
-            $fields = json_decode((string)($body['fields_json'] ?? '[]'), true) ?: [];
+            $fields = [];
         }
 
         try {
@@ -104,7 +128,36 @@ class SigningController extends Controller
                 'pageTitle' => 'Signing Error',
                 'message'   => $e->getMessage(),
                 'code'      => 422,
+                'token'     => $token,
             ], 'clean');
+        }
+    }
+
+    /**
+     * Self-service resend signing link to signer email.
+     */
+    public function resendLink(Request $request, Response $response, string $token): void
+    {
+        $sigSignerModel = new SignatureSigner();
+        $sigReqModel = new SignatureRequest();
+
+        $signer = $sigSignerModel->findByToken($token);
+        if (!$signer) {
+            $response->json(['success' => false, 'message' => 'Signer not found.'], 404);
+            return;
+        }
+
+        $sigRequest = $sigReqModel->find((int)$signer['request_id']);
+        if (!$sigRequest) {
+            $response->json(['success' => false, 'message' => 'Request not found.'], 404);
+            return;
+        }
+
+        try {
+            SignatureService::sendSingleSignerInvite($sigRequest, $signer);
+            $response->json(['success' => true, 'message' => 'A fresh signing link has been sent to ' . htmlspecialchars($signer['email']) . '.']);
+        } catch (Throwable $e) {
+            $response->json(['success' => false, 'message' => 'Could not resend email: ' . $e->getMessage()], 500);
         }
     }
 

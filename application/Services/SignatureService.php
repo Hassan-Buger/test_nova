@@ -376,8 +376,17 @@ class SignatureService
 
         $myFields = $sigFieldModel->getBySignerId($signerId);
         $myFieldsById = [];
+        $firstSigField = null;
+        $firstDateField = null;
         foreach ($myFields as $f) {
             $myFieldsById[(int)$f['id']] = $f;
+            $ft = $f['type'] ?? '';
+            if (($ft === 'signature' || $ft === 'initial' || $ft === 'initials') && !$firstSigField) {
+                $firstSigField = $f;
+            }
+            if ($ft === 'date' && !$firstDateField) {
+                $firstDateField = $f;
+            }
         }
 
         $db = Database::getInstance();
@@ -385,8 +394,20 @@ class SignatureService
 
         try {
             // Process each submitted field
-            foreach ($fieldSubmissions as $fieldId => $data) {
-                $fieldId = (int)$fieldId;
+            foreach ($fieldSubmissions as $k => $data) {
+                $rawId = is_array($data) ? ($data['field_id'] ?? $data['id'] ?? $k) : $k;
+                $fieldId = (int)$rawId;
+
+                // If non-numeric or not in database, fallback to matching by type
+                if ($fieldId <= 0 || !isset($myFieldsById[$fieldId])) {
+                    $dataType = is_array($data) ? ($data['type'] ?? '') : '';
+                    if ($dataType === 'date' && $firstDateField) {
+                        $fieldId = (int)$firstDateField['id'];
+                    } elseif ($firstSigField) {
+                        $fieldId = (int)$firstSigField['id'];
+                    }
+                }
+
                 if (!isset($myFieldsById[$fieldId])) {
                     continue; // Ignore fields that do not belong to this signer
                 }
@@ -399,17 +420,21 @@ class SignatureService
                 $customText = null;
 
                 if ($type === 'signature' || $type === 'initials') {
-                    $sigData = (string)($data['value'] ?? '');
-                    $sigType = (string)($data['type'] ?? 'drawn');
+                    $sigData = (string)(is_array($data) ? ($data['value'] ?? $data['signature_data'] ?? '') : $data);
+                    $rawSigType = is_array($data) ? ($data['signature_type'] ?? $data['type'] ?? 'drawn') : 'drawn';
+                    $sigType = in_array($rawSigType, ['drawn', 'typed', 'uploaded'], true) ? $rawSigType : 'drawn';
                     if (empty($sigData)) {
                         continue;
                     }
                 } elseif ($type === 'date') {
-                    $customText = !empty($data['value']) ? trim((string)$data['value']) : date('d/m/Y');
+                    $val = is_array($data) ? ($data['value'] ?? '') : (string)$data;
+                    $customText = !empty($val) ? trim((string)$val) : date('d/m/Y');
                 } elseif ($type === 'checkbox') {
-                    $customText = !empty($data['value']) ? '1' : '0';
+                    $val = is_array($data) ? ($data['value'] ?? '') : (string)$data;
+                    $customText = (!empty($val) && $val !== '0') ? '1' : '0';
                 } else {
-                    $customText = trim((string)($data['value'] ?? ''));
+                    $val = is_array($data) ? ($data['value'] ?? '') : (string)$data;
+                    $customText = trim((string)$val);
                 }
 
                 $sigFieldModel->saveFieldValue($fieldId, $sigData, $sigType, $customText);
