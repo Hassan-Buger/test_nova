@@ -136,7 +136,7 @@ final class FileStorageService
 
         $pdf = new \setasign\Fpdi\Fpdi('P', 'mm', 'A4');
         $pdf->AddPage();
-        $pdf->SetAutoPageBreak(true, 15);
+        $pdf->SetAutoPageBreak(false);
 
         // Header brand bar
         $pdf->SetFillColor(13, 148, 136); // TriNova teal #0d9488

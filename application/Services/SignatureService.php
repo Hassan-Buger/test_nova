@@ -335,6 +335,33 @@ class SignatureService
 
         // Load fields for this signer and for the whole document (for viewing placeholders)
         $myFields = $sigFieldModel->getBySignerId((int)$signer['id']);
+        if (empty($myFields)) {
+            // Auto-create standard signature and date field inside the Authorized Signature Area on Page 1
+            $sigFieldModel->create([
+                'request_id' => $requestId,
+                'signer_id'  => (int)$signer['id'],
+                'type'       => 'signature',
+                'page'       => 1,
+                'position_x' => 8.5,
+                'position_y' => 71.5,
+                'width'      => 46.0,
+                'height'     => 8.5,
+                'required'   => 1,
+            ]);
+            $sigFieldModel->create([
+                'request_id' => $requestId,
+                'signer_id'  => (int)$signer['id'],
+                'type'       => 'date',
+                'page'       => 1,
+                'position_x' => 62.0,
+                'position_y' => 75.0,
+                'width'      => 27.0,
+                'height'     => 5.2,
+                'required'   => 1,
+            ]);
+            $myFields = $sigFieldModel->getBySignerId((int)$signer['id']);
+        }
+
         $allFields = $sigFieldModel->getByRequestId($requestId);
 
         return [
@@ -375,6 +402,32 @@ class SignatureService
         $sigAuditModel = new SignatureAuditEvent();
 
         $myFields = $sigFieldModel->getBySignerId($signerId);
+        if (empty($myFields)) {
+            $sigFieldModel->create([
+                'request_id' => $requestId,
+                'signer_id'  => $signerId,
+                'type'       => 'signature',
+                'page'       => 1,
+                'position_x' => 8.5,
+                'position_y' => 71.5,
+                'width'      => 46.0,
+                'height'     => 8.5,
+                'required'   => 1,
+            ]);
+            $sigFieldModel->create([
+                'request_id' => $requestId,
+                'signer_id'  => $signerId,
+                'type'       => 'date',
+                'page'       => 1,
+                'position_x' => 62.0,
+                'position_y' => 75.0,
+                'width'      => 27.0,
+                'height'     => 5.2,
+                'required'   => 1,
+            ]);
+            $myFields = $sigFieldModel->getBySignerId($signerId);
+        }
+
         $myFieldsById = [];
         $firstSigField = null;
         $firstDateField = null;
@@ -437,7 +490,27 @@ class SignatureService
                     $customText = trim((string)$val);
                 }
 
-                $sigFieldModel->saveFieldValue($fieldId, $sigData, $sigType, $customText);
+                // Snap coordinates inside Authorized Signature Area on Page 1
+                $subPage = 1;
+                if ($type === 'signature' || $type === 'initial' || $type === 'initials') {
+                    $subX = 8.5;
+                    $subY = 71.5;
+                    $subW = 46.0;
+                    $subH = 8.5;
+                } elseif ($type === 'date') {
+                    $subX = 62.0;
+                    $subY = 75.0;
+                    $subW = 27.0;
+                    $subH = 5.2;
+                } else {
+                    $subPage = !empty($data['page']) ? (int)$data['page'] : ($field['page'] ?? 1);
+                    $subX = isset($data['position_x']) ? (float)$data['position_x'] : ($field['position_x'] ?? null);
+                    $subY = isset($data['position_y']) ? (float)$data['position_y'] : ($field['position_y'] ?? null);
+                    $subW = isset($data['width']) ? (float)$data['width'] : ($field['width'] ?? null);
+                    $subH = isset($data['height']) ? (float)$data['height'] : ($field['height'] ?? null);
+                }
+
+                $sigFieldModel->saveFieldValue($fieldId, $sigData, $sigType, $customText, $subPage, $subX, $subY, $subW, $subH);
             }
 
             // Verify all required fields for this signer have been completed

@@ -71,23 +71,55 @@ class SignatureField extends Model
         return (int)$this->db->lastInsertId();
     }
 
-    public function saveFieldValue(int $id, ?string $signatureData, ?string $signatureType, ?string $customText): bool
-    {
-        $stmt = $this->db->prepare("
-            UPDATE signature_fields 
-            SET signature_data = :sig_data,
-                signature_type = :sig_type,
-                custom_text = :custom_text,
-                inserted = 1,
-                signed_at = NOW()
-            WHERE id = :id
-        ");
-        return $stmt->execute([
+    public function saveFieldValue(
+        int $id,
+        ?string $signatureData,
+        ?string $signatureType,
+        ?string $customText,
+        ?int $page = null,
+        ?float $posX = null,
+        ?float $posY = null,
+        ?float $width = null,
+        ?float $height = null
+    ): bool {
+        $updates = [
+            'signature_data = :sig_data',
+            'signature_type = :sig_type',
+            'custom_text = :custom_text',
+            'inserted = 1',
+            'signed_at = NOW()',
+        ];
+        $params = [
             'sig_data'    => $signatureData,
             'sig_type'    => $signatureType,
             'custom_text' => $customText,
             'id'          => $id,
-        ]);
+        ];
+
+        if ($page !== null) {
+            $updates[] = 'page = :page';
+            $params['page'] = $page;
+        }
+        if ($posX !== null) {
+            $updates[] = 'position_x = :pos_x';
+            $params['pos_x'] = $posX;
+        }
+        if ($posY !== null) {
+            $updates[] = 'position_y = :pos_y';
+            $params['pos_y'] = $posY;
+        }
+        if ($width !== null) {
+            $updates[] = 'width = :width';
+            $params['width'] = $width;
+        }
+        if ($height !== null) {
+            $updates[] = 'height = :height';
+            $params['height'] = $height;
+        }
+
+        $sql = "UPDATE signature_fields SET " . implode(', ', $updates) . " WHERE id = :id";
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params);
     }
 
     public function clearFieldValue(int $id): bool

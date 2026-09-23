@@ -206,10 +206,10 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                 id: 'auto_sig_' + (signerInfo.id || '1'),
                 type: 'signature',
                 page: 1,
-                position_x: 8.0,
-                position_y: 70.5,
-                width: 48.0,
-                height: 9.8,
+                position_x: 8.5,
+                position_y: 71.5,
+                width: 46.0,
+                height: 8.5,
                 required: 1,
                 is_auto: true
             }, {
@@ -217,32 +217,31 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                 type: 'date',
                 page: 1,
                 position_x: 62.0,
-                position_y: 75.5,
-                width: 25.0,
-                height: 5.5,
+                position_y: 75.0,
+                width: 27.0,
+                height: 5.2,
                 required: 1,
                 is_auto: true
             }];
         }
 
-        // Align coordinates over the "AUTHORIZED SIGNATURE AREA"
+        // Align coordinates directly inside the printed "AUTHORIZED SIGNATURE AREA" on Page 1
         myFields.forEach(f => {
             const fType = f.type || f.field_type || 'signature';
             f.type = fType;
-            f.page = parseInt(f.page || f.page_number || 1);
+            f.page = 1;
             f.required = (f.required !== undefined) ? parseInt(f.required) : ((f.is_required !== undefined) ? parseInt(f.is_required) : 1);
 
-            // Snap standard signature & date fields directly inside the printed signature box
             if (fType === 'signature' || fType === 'initial' || fType === 'initials') {
-                f.position_x = (f.position_x && f.position_x !== 0 && f.position_x !== 10) ? f.position_x : 8.0;
-                f.position_y = (f.position_y && f.position_y !== 0 && f.position_y !== 80 && f.position_y !== 75) ? f.position_y : 70.5;
-                f.width = (f.width && f.width !== 20 && f.width !== 24 && f.width !== 30) ? f.width : 48.0;
-                f.height = (f.height && f.height !== 6 && f.height !== 8) ? f.height : 9.8;
+                f.position_x = 8.5;
+                f.position_y = 71.5;
+                f.width = 46.0;
+                f.height = 8.5;
             } else if (fType === 'date') {
-                f.position_x = (f.position_x && f.position_x !== 0 && f.position_x !== 10) ? f.position_x : 62.0;
-                f.position_y = (f.position_y && f.position_y !== 0 && f.position_y !== 80 && f.position_y !== 75) ? f.position_y : 75.5;
-                f.width = (f.width && f.width !== 20 && f.width !== 24 && f.width !== 30) ? f.width : 25.0;
-                f.height = (f.height && f.height !== 6 && f.height !== 8) ? f.height : 5.5;
+                f.position_x = 62.0;
+                f.position_y = 75.0;
+                f.width = 27.0;
+                f.height = 5.2;
             }
         });
 
@@ -515,7 +514,12 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                     field_id: f.id,
                     value: fieldValues[f.id] || '',
                     type: (f.type || f.field_type || 'signature'),
-                    signature_type: (signatureTypes[f.id] || 'drawn')
+                    signature_type: (signatureTypes[f.id] || 'drawn'),
+                    page: 1,
+                    position_x: f.position_x,
+                    position_y: f.position_y,
+                    width: f.width,
+                    height: f.height
                 });
             }
 
@@ -546,11 +550,9 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                 const container = document.getElementById('pdfPagesContainer');
                 container.innerHTML = '';
 
-                // Clamp fields to document pages
+                // Keep fields strictly inside Authorized Signature Area on Page 1
                 myFields.forEach(f => {
-                    if (f.page > pdf.numPages) {
-                        f.page = pdf.numPages;
-                    }
+                    f.page = 1;
                 });
 
                 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -639,18 +641,18 @@ $requiredFieldsCount = count(array_filter($myFields, fn($f) => (int)($f['require
                     widget.innerHTML = `
                         <div class="w-full h-full bg-white/95 border border-slate-300 rounded-lg shadow-sm px-2 flex items-center gap-1.5 focus-within:border-teal-600 focus-within:ring-2 focus-within:ring-teal-100">
                             <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                            <input type="date" value="${val}" onchange="fieldValues[${f.id}] = this.value; updateProgress()" class="w-full h-full text-xs font-bold text-slate-800 bg-transparent border-0 focus:outline-none" />
+                            <input type="date" value="${val}" onchange="fieldValues['${f.id}'] = this.value; updateProgress()" class="w-full h-full text-xs font-bold text-slate-800 bg-transparent border-0 focus:outline-none" />
                         </div>
                     `;
                 } else if (fieldType === 'text') {
                     widget.innerHTML = `
-                        <input type="text" value="${fieldValues[f.id] || ''}" placeholder="${f.custom_text || f.custom_label || 'Enter text...'}" oninput="fieldValues[${f.id}] = this.value; updateProgress()" class="w-full h-full text-xs text-slate-800 bg-white/95 border border-slate-300 rounded px-2 shadow-sm focus:outline-none focus:border-teal-600" />
+                        <input type="text" value="${fieldValues[f.id] || ''}" placeholder="${f.custom_text || f.custom_label || 'Enter text...'}" oninput="fieldValues['${f.id}'] = this.value; updateProgress()" class="w-full h-full text-xs text-slate-800 bg-white/95 border border-slate-300 rounded px-2 shadow-sm focus:outline-none focus:border-teal-600" />
                     `;
                 } else if (fieldType === 'checkbox') {
                     const isChecked = fieldValues[f.id] ? 'checked' : '';
                     widget.innerHTML = `
                         <div class="w-full h-full flex items-center justify-center bg-white/80 border border-slate-300 rounded">
-                            <input type="checkbox" ${isChecked} onchange="fieldValues[${f.id}] = this.checked ? '1' : ''; updateProgress()" class="w-5 h-5 text-teal-600 rounded cursor-pointer" />
+                            <input type="checkbox" ${isChecked} onchange="fieldValues['${f.id}'] = this.checked ? '1' : ''; updateProgress()" class="w-5 h-5 text-teal-600 rounded cursor-pointer" />
                         </div>
                     `;
                 }
