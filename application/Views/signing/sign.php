@@ -4,6 +4,17 @@
  */
 $actionableFields = array_values(array_filter($myFields, fn($f) => ($f['type'] ?? $f['field_type'] ?? '') !== 'date'));
 $requiredFieldsCount = count($actionableFields) ?: 1;
+
+$hasSigArea = false;
+$hasTealHdr = false;
+if (!empty($request['document_id'])) {
+    $doc = (new \Application\Models\Document())->find((int)$request['document_id']);
+    if ($doc && !empty($doc['stored_path'])) {
+        $resolved = \Application\Services\FileStorageService::resolvePath($doc['stored_path'], $doc['filename'] ?? '');
+        $hasSigArea = \Application\Services\SignatureSealerService::documentHasSignatureArea($resolved);
+        $hasTealHdr = \Application\Services\SignatureSealerService::documentHasTealHeader($resolved);
+    }
+}
 ?>
 
 <?php if (!$isTurn): ?>
@@ -207,6 +218,8 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
         const allFields = <?= json_encode($allFields) ?>;
         const signerInfo = <?= json_encode($signer) ?>;
         const pdfUrl = '/sign/' + signingToken + '/pdf';
+        const documentHasSignatureArea = <?= json_encode($hasSigArea) ?>;
+        const documentHasTealHeader = <?= json_encode($hasTealHdr) ?>;
 
         // Current date formatted in standard DD/MM/YYYY
         const today = new Date();
@@ -724,8 +737,20 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
                     };
                     await page.render(renderContext).promise;
 
+                    // Component A: Visual Header on Page 1 if source document does not already have it
+                    if (pageNum === 1 && !documentHasTealHeader) {
+                        const headerEl = document.createElement('div');
+                        headerEl.className = 'absolute top-0 left-0 right-0 bg-[#0d9488] flex items-center text-white font-bold tracking-wider pointer-events-none z-10 shadow-sm';
+                        headerEl.style.height = '9.02%';
+                        headerEl.style.paddingLeft = '7.14%';
+                        headerEl.style.fontSize = Math.max(12, Math.round(viewport.width * 0.024)) + 'px';
+                        headerEl.style.fontFamily = 'Helvetica, Arial, sans-serif';
+                        headerEl.textContent = 'TRINOVA ACCOUNTING & ADVISORY';
+                        overlay.appendChild(headerEl);
+                    }
+
                     // Place fields for this page
-                    renderPageFields(pageNum, overlay);
+                    renderPageFields(pageNum, overlay, pdf.numPages);
                 }
 
                 updateProgress();
@@ -743,13 +768,40 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
             }
         }
 
-        function renderPageFields(pageNum, overlayContainer) {
+        function renderPageFields(pageNum, overlayContainer, totalPages = 1) {
             const pageFields = myFields.filter(f => parseInt(f.page || f.page_number || 1) === pageNum);
+
+            // Component B: Visual Authorized Signature Area Box Container if auto placement on final source page
+            const hasAutoOrFooterSig = pageFields.some(f => {
+                const t = f.type || f.field_type || '';
+                return (t === 'signature' || t === 'initial' || t === 'initials') && (parseFloat(f.position_y || 74.0) >= 60.0);
+            });
+
+            if (pageNum === totalPages && hasAutoOrFooterSig && !documentHasSignatureArea) {
+                const boxEl = document.createElement('div');
+                boxEl.className = 'absolute pointer-events-none rounded border';
+                boxEl.style.left = '7.14%';
+                boxEl.style.top = '69.02%';
+                boxEl.style.width = '85.71%';
+                boxEl.style.height = '15.15%';
+                boxEl.style.backgroundColor = '#f8fafc';
+                boxEl.style.borderColor = '#cbd5e1';
+                boxEl.style.zIndex = '1';
+
+                boxEl.innerHTML = `
+                    <div class="p-2.5 flex flex-col justify-between h-full">
+                        <div class="text-[9px] font-bold text-slate-400 tracking-wider">AUTHORIZED SIGNATURE AREA</div>
+                        <div class="text-[9px] text-slate-400">Authorized Signatory Signature</div>
+                    </div>
+                `;
+                overlayContainer.appendChild(boxEl);
+            }
 
             pageFields.forEach(f => {
                 const widget = document.createElement('div');
                 widget.id = 'field-widget-' + f.id;
                 widget.className = 'absolute pointer-events-auto cursor-pointer transition-all';
+                widget.style.zIndex = '2';
                 widget.style.left = f.position_x + '%';
                 widget.style.top = f.position_y + '%';
                 widget.style.width = f.width + '%';

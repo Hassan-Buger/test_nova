@@ -175,9 +175,19 @@ class SignatureSealerService
                     $pageWidth = (float)$size['width'];
                     $pageHeight = (float)$size['height'];
 
+                    // Component A: Ensure TriNova corporate green/teal header bar on Page 1
+                    if ($pageNo === 1 && !self::documentHasTealHeader($originalFilePath)) {
+                        self::ensureDocumentHeader($pdf, $originalFilePath, $pageWidth, $pageHeight);
+                    }
+
+                    // Component B: Ensure light-grey Authorized Signature Area box on final source page
+                    if ($pageNo === $pageCount && !empty($fieldsByPage[$pageNo])) {
+                        self::ensureSignatureBoxContainer($pdf, $originalFilePath, $pageWidth, $pageHeight, $fieldsByPage[$pageNo]);
+                    }
+
                     if (!empty($fieldsByPage[$pageNo])) {
                         foreach ($fieldsByPage[$pageNo] as $field) {
-                            self::stampField($pdf, $field, $pageWidth, $pageHeight, $tempFiles, $pageNo, $pageCount);
+                            self::stampField($pdf, $field, $pageWidth, $pageHeight, $tempFiles, $pageNo, $pageCount, $originalFilePath);
                         }
                     }
                 }
@@ -220,6 +230,198 @@ class SignatureSealerService
                     @unlink($tempFile);
                 }
             }
+        }
+    }
+
+    /**
+     * Check if a PDF document already contains an embedded "AUTHORIZED SIGNATURE AREA".
+     */
+    public static function documentHasSignatureArea(string $pdfPath): bool
+    {
+        if (!is_file($pdfPath) || filesize($pdfPath) === 0) {
+            return false;
+        }
+
+        $content = @file_get_contents($pdfPath);
+        if ($content === false) {
+            return false;
+        }
+
+        if (str_contains($content, 'AUTHORIZED SIGNATURE AREA')) {
+            return true;
+        }
+
+        if (preg_match_all('#stream[\r\n]+(.*?)[\r\n]+endstream#s', $content, $matches)) {
+            foreach ($matches[1] as $stream) {
+                $dec = @gzuncompress($stream);
+                if (!$dec) {
+                    $dec = @gzinflate($stream);
+                }
+                if ($dec && str_contains($dec, 'AUTHORIZED SIGNATURE AREA')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if Page 1 of the PDF already has the TriNova corporate teal header bar.
+     */
+    public static function documentHasTealHeader(string $pdfPath): bool
+    {
+        if (!is_file($pdfPath) || filesize($pdfPath) === 0) {
+            return false;
+        }
+
+        $content = @file_get_contents($pdfPath);
+        if ($content === false) {
+            return false;
+        }
+
+        if (str_contains($content, '13.000 148.000 136.000') || 
+            str_contains($content, '0.051 0.58') || 
+            str_contains($content, '13 148 136 rg')) {
+            return true;
+        }
+
+        if (preg_match_all('#stream[\r\n]+(.*?)[\r\n]+endstream#s', $content, $matches)) {
+            foreach ($matches[1] as $stream) {
+                $dec = @gzuncompress($stream);
+                if (!$dec) {
+                    $dec = @gzinflate($stream);
+                }
+                if ($dec && (str_contains($dec, '13.000 148.000 136.000') || str_contains($dec, '0.051 0.58') || str_contains($dec, '13 148 136 rg'))) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Dynamically calculate safe, dimension-aware coordinates for the Authorized Signature Area box.
+     */
+    public static function calculateSignatureBoxDimensions(float $pageWidth, float $pageHeight): array
+    {
+        $boxW = min(180.0, $pageWidth - 30.0);
+        $boxH = min(45.0, $pageHeight * 0.20);
+        $boxX = ($pageWidth - $boxW) / 2.0;
+        $boxY = $pageHeight - $boxH - max(15.0, $pageHeight * 0.05);
+
+        // Standard A4 portrait anchor (approx 210 x 297 mm)
+        if (abs($pageWidth - 210.0) < 5.0 && abs($pageHeight - 297.0) < 5.0) {
+            $boxX = 15.0;
+            $boxY = 205.0;
+            $boxW = 180.0;
+            $boxH = 45.0;
+        }
+
+        return [
+            'x' => $boxX,
+            'y' => $boxY,
+            'w' => $boxW,
+            'h' => $boxH,
+        ];
+    }
+
+    /**
+     * Component A: Ensure the TriNova corporate green/teal header is cleanly rendered on Page 1.
+     */
+    private static function ensureDocumentHeader(Fpdi $pdf, string $originalFilePath, float $pageWidth, float $pageHeight): void
+    {
+        $headerHeight = min(26.8, $pageHeight * 0.095);
+        if (abs($pageWidth - 210.0) < 5.0 && abs($pageHeight - 297.0) < 5.0) {
+            $headerHeight = 26.8;
+        }
+
+        // Full-width horizontal header area with TriNova teal
+        $pdf->SetFillColor(13, 148, 136); // #0d9488
+        $pdf->Rect(0, 0, $pageWidth, $headerHeight, 'F');
+
+        // White typography, bold, professional contrast
+        $pdf->SetFont('Helvetica', 'B', 13.0);
+        $pdf->SetTextColor(255, 255, 255);
+        $textY = ($headerHeight - 7.0) / 2.0;
+        $pdf->SetXY(15.0, $textY);
+        $pdf->Cell($pageWidth - 30.0, 7.0, 'TRINOVA ACCOUNTING & ADVISORY', 0, 1, 'L');
+    }
+
+    /**
+     * Component B: Ensure the light-grey Authorized Signature Area container box is visible on the final source page.
+     * Follows priority:
+     * 1. Manual signature fields (if customized to a non-footer location, preserve manual placement).
+     * 2. Existing signature area in the source document (if already has AUTHORIZED SIGNATURE AREA, do not duplicate).
+     * 3. Automatic signature area on the final source page (draw the complete visible light-grey container).
+     */
+    private static function ensureSignatureBoxContainer(Fpdi $pdf, string $originalFilePath, float $pageWidth, float $pageHeight, array $pageFields): void
+    {
+        // Priority 1: Check if manual placement was used (fields not in standard footer band)
+        $hasSigField = false;
+        $isManualCustomPlacement = false;
+        foreach ($pageFields as $f) {
+            $type = $f['field_type'] ?? $f['type'] ?? '';
+            if ($type === 'signature' || $type === 'initial' || $type === 'initials') {
+                $hasSigField = true;
+                $posY = (float)($f['position_y'] ?? 74.0);
+                if ($posY < 60.0) {
+                    $isManualCustomPlacement = true;
+                }
+            }
+        }
+
+        if (!$hasSigField || $isManualCustomPlacement) {
+            return;
+        }
+
+        // Priority 2: Check if source document already contains a designed AUTHORIZED SIGNATURE AREA
+        if (self::documentHasSignatureArea($originalFilePath)) {
+            return;
+        }
+
+        // Priority 3: Automatic signature area on final source page: draw complete visible box
+        $box = self::calculateSignatureBoxDimensions($pageWidth, $pageHeight);
+        $boxX = $box['x'];
+        $boxY = $box['y'];
+        $boxW = $box['w'];
+        $boxH = $box['h'];
+
+        // Complete visible rectangular container with subtle grey background and blue-grey border
+        $pdf->SetDrawColor(203, 213, 225); // #cbd5e1 border
+        $pdf->SetFillColor(248, 250, 252); // #f8fafc background
+        $pdf->SetLineWidth(0.4);
+        $pdf->Rect($boxX, $boxY, $boxW, $boxH, 'DF');
+
+        // Upper-left title
+        $pdf->SetFont('Helvetica', 'B', 8.5);
+        $pdf->SetTextColor(148, 163, 184); // #94a3b8 muted grey
+        $pdf->SetXY($boxX + 5.0, $boxY + 3.0);
+        $pdf->Cell($boxW - 10.0, 5.0, 'AUTHORIZED SIGNATURE AREA', 0, 1, 'L');
+
+        // Lower-left subtitle under the signature zone
+        $pdf->SetFont('Helvetica', '', 8.0);
+        $pdf->SetTextColor(148, 163, 184); // #94a3b8 muted grey
+        $pdf->SetXY($boxX + 5.0, $boxY + $boxH - 10.0);
+        $pdf->Cell(80.0, 5.0, 'Authorized Signatory Signature', 0, 0, 'L');
+
+        // Check if date field is among page fields; if not, stamp default dynamic date
+        $hasDateField = false;
+        foreach ($pageFields as $f) {
+            $t = $f['field_type'] ?? $f['type'] ?? '';
+            if ($t === 'date') {
+                $hasDateField = true;
+                break;
+            }
+        }
+        if (!$hasDateField) {
+            $pdf->SetFont('Helvetica', '', 8.0);
+            $pdf->SetTextColor(148, 163, 184); // #94a3b8 muted grey
+            $dateX = $boxX + $boxW - 85.0;
+            $dateY = $boxY + $boxH - 10.0;
+            $pdf->SetXY($dateX, $dateY);
+            $pdf->Cell(80.0, 5.0, 'Date: ' . date('d/m/Y'), 0, 1, 'R');
         }
     }
 
@@ -273,7 +475,7 @@ class SignatureSealerService
     /**
      * Stamp an individual field onto the active PDF page.
      */
-    private static function stampField(Fpdi $pdf, array $field, float $pageWidth, float $pageHeight, array &$tempFiles, int $pageNo = 1, int $pageCount = 1): void
+    private static function stampField(Fpdi $pdf, array $field, float $pageWidth, float $pageHeight, array &$tempFiles, int $pageNo = 1, int $pageCount = 1, string $originalFilePath = ''): void
     {
         $x = ((float)$field['position_x'] / 100.0) * $pageWidth;
         $y = ((float)$field['position_y'] / 100.0) * $pageHeight;
@@ -283,12 +485,15 @@ class SignatureSealerService
         $type = $field['field_type'] ?? $field['type'] ?? 'signature';
 
         if ($type === 'signature' || $type === 'initial' || $type === 'initials') {
-            // Guarantee elegant compact dimensions within the Authorized Signature Area on Page 1 of demo template
-            if ($pageCount === 1 && $pageNo === 1 && $y >= 200) {
-                if ($w > 62.0) $w = 58.8; // ~28%
-                if ($h > 18.0) $h = 16.6; // ~5.6%
-                if ($x < 20.0) $x = 20.0; // aligns with text at 20mm
-                if ($y < 218.0) $y = 219.8; // sits comfortably above text at 240mm
+            $box = self::calculateSignatureBoxDimensions($pageWidth, $pageHeight);
+            $inSignatureBox = ($pageNo === $pageCount && $y >= ($box['y'] - 10.0));
+
+            if ($inSignatureBox) {
+                // Dimensions safely positioned inside the left half of the signature box
+                $w = min(58.8, $box['w'] * 0.45);
+                $h = min(22.0, $box['h'] * 0.48);
+                $x = $box['x'] + 5.0;
+                $y = $box['y'] + 12.0;
             }
 
             $sigData = (string)($field['field_value'] ?? $field['signature_data'] ?? '');
@@ -323,7 +528,6 @@ class SignatureSealerService
                                 $pdf->Image($tmpFile, $x, $y, $w, $h);
                             }
                         } catch (Throwable $e) {
-                            // Fallback if image render encounters format quirk
                             self::renderFallbackSignatureText($pdf, $x, $y, $w, $h, (string)($field['custom_label'] ?? $field['custom_text'] ?? 'Signed'));
                         }
                     } else {
@@ -342,19 +546,29 @@ class SignatureSealerService
                 $dateText = date('d/m/Y');
             }
 
-            // If positioned inside the standard Authorized Signature Area on Page 1 of single-page demo template
-            if ($pageCount === 1 && $pageNo === 1 && $y >= 200) {
-                // Cover any previous template date cleanly with the signature box background color (#f8fafc)
-                $pdf->SetFillColor(248, 250, 252);
-                $pdf->Rect(100, 238.5, 92, 6.5, 'F');
+            $box = self::calculateSignatureBoxDimensions($pageWidth, $pageHeight);
+            $inSignatureBox = ($pageNo === $pageCount && $y >= ($box['y'] - 10.0));
 
-                // Stamp the present date in the exact light grey color (#94a3b8) matching the template
-                $pdf->SetFont('Helvetica', '', 8);
+            if ($inSignatureBox) {
+                // If source document already contains pre-printed signature box, clean the pre-printed date slot before stamping dynamic date
+                if ($originalFilePath !== '' && self::documentHasSignatureArea($originalFilePath)) {
+                    $pdf->SetFillColor(248, 250, 252);
+                    $cleanW = min(92.0, $box['w'] * 0.5);
+                    $cleanH = 6.5;
+                    $cleanX = $box['x'] + $box['w'] - $cleanW - 2.0;
+                    $cleanY = $box['y'] + $box['h'] - 11.5;
+                    $pdf->Rect($cleanX, $cleanY, $cleanW, $cleanH, 'F');
+                }
+
+                // Stamp dynamic date aligned on the right side of the signature box in muted grey (#94a3b8)
+                $pdf->SetFont('Helvetica', '', 8.0);
                 $pdf->SetTextColor(148, 163, 184); // light grey #94a3b8
-                $pdf->SetXY(100, 240);
-                $pdf->Cell(80, 5, 'Date: ' . $dateText, 0, 1, 'R');
+                $dateX = $box['x'] + $box['w'] - 85.0;
+                $dateY = $box['y'] + $box['h'] - 10.0;
+                $pdf->SetXY($dateX, $dateY);
+                $pdf->Cell(80.0, 5.0, 'Date: ' . $dateText, 0, 1, 'R');
             } else {
-                // Multi-page or custom placement: stamp cleanly at field coordinates
+                // Custom manual placement
                 $pdf->SetFont('Helvetica', '', 8.5);
                 $pdf->SetTextColor(148, 163, 184); // light grey #94a3b8
                 $pdf->SetXY($x, $y);
