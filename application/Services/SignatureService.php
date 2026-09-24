@@ -14,6 +14,7 @@ use Application\Models\SignatureSigner;
 use Application\Models\User;
 use Exception;
 use Throwable;
+use Application\Services\FileStorageService;
 
 class SignatureService
 {
@@ -333,34 +334,8 @@ class SignatureService
         // Check sequential turn
         $isTurn = $sigSignerModel->isTurnToSign((int)$signer['id']);
 
-        // Load fields for this signer and for the whole document (for viewing placeholders)
-        $myFields = $sigFieldModel->getBySignerId((int)$signer['id']);
-        if (empty($myFields)) {
-            // Auto-create standard signature and date field inside the Authorized Signature Area on Page 1
-            $sigFieldModel->create([
-                'request_id' => $requestId,
-                'signer_id'  => (int)$signer['id'],
-                'type'       => 'signature',
-                'page'       => 1,
-                'position_x' => 9.5,
-                'position_y' => 74.0,
-                'width'      => 28.0,
-                'height'     => 5.6,
-                'required'   => 1,
-            ]);
-            $sigFieldModel->create([
-                'request_id' => $requestId,
-                'signer_id'  => (int)$signer['id'],
-                'type'       => 'date',
-                'page'       => 1,
-                'position_x' => 55.0,
-                'position_y' => 80.0,
-                'width'      => 35.0,
-                'height'     => 3.5,
-                'required'   => 0,
-            ]);
-            $myFields = $sigFieldModel->getBySignerId((int)$signer['id']);
-        }
+        // Load fields for this signer (auto-generating on final page if no custom fields were configured)
+        $myFields = self::ensureDefaultFieldsForSigner($requestId, (int)$signer['id'], $request);
 
         $allFields = $sigFieldModel->getByRequestId($requestId);
 
@@ -371,6 +346,146 @@ class SignatureService
             'all_fields' => $allFields,
             'is_turn'    => $isTurn,
         ];
+    }
+
+    /**
+     * Determine dynamic placement coordinates on the final page of the uploaded PDF.
+     * Single source of truth for automatic/default signature and date placement.
+     *
+     * @param array $request Signature request row (containing document_id)
+     * @return array
+     */
+    public static function determineDefaultPlacement(array $request): array
+    {
+        $docId = (int)($request['document_id'] ?? 0);
+        $finalPage = 1;
+        $totalPages = 1;
+        $pageWidth = 210.0;
+        $pageHeight = 297.0;
+        $isLandscape = false;
+
+        $doc = null;
+        if ($docId > 0) {
+            $doc = (new Document())->find($docId);
+        }
+
+        if ($doc) {
+            $storedPath = (string)($doc['stored_path'] ?? '');
+            $originalFilename = (string)($doc['filename'] ?? '');
+            $resolvedPath = FileStorageService::resolvePath($storedPath, $originalFilename);
+
+            if (is_file($resolvedPath)) {
+                try {
+                    $pdf = new \setasign\Fpdi\Fpdi();
+                    $pageCount = (int)$pdf->setSourceFile($resolvedPath);
+                    if ($pageCount > 0) {
+                        $totalPages = $pageCount;
+                        $finalPage = $pageCount;
+
+                        $tpl = $pdf->importPage($finalPage);
+                        $size = $pdf->getTemplateSize($tpl);
+                        $pageWidth = (float)($size['width'] ?? 210.0);
+                        $pageHeight = (float)($size['height'] ?? 297.0);
+                        $isLandscape = ($pageWidth > $pageHeight) || (($size['orientation'] ?? '') === 'L');
+
+                        error_log(sprintf(
+                            '[TriNova Smart Placement] Document #%d ("%s"): %d pages detected. Defaulting signature fields to final page %d (%s, %.1fx%.1f mm).',
+                            $docId,
+                            $originalFilename,
+                            $totalPages,
+                            $finalPage,
+                            $isLandscape ? 'Landscape' : 'Portrait',
+                            $pageWidth,
+                            $pageHeight
+                        ));
+                    }
+                } catch (Throwable $e) {
+                    error_log(sprintf(
+                        '[TriNova Smart Placement WARNING] FPDI failed to inspect document #%d ("%s", stored: "%s", resolved: "%s"): %s. Safely falling back to page 1.',
+                        $docId,
+                        $originalFilename,
+                        $storedPath,
+                        $resolvedPath,
+                        $e->getMessage()
+                    ));
+                    $finalPage = 1;
+                    $totalPages = 1;
+                }
+            } else {
+                error_log(sprintf(
+                    '[TriNova Smart Placement WARNING] Document file not found on disk for document #%d ("%s", stored: "%s", resolved: "%s"). Safely falling back to page 1.',
+                    $docId,
+                    $originalFilename,
+                    $storedPath,
+                    $resolvedPath
+                ));
+            }
+        }
+
+        return [
+            'page'            => $finalPage,
+            'total_pages'     => $totalPages,
+            'page_width'      => $pageWidth,
+            'page_height'     => $pageHeight,
+            'is_landscape'    => $isLandscape,
+            'signature_field' => [
+                'position_x' => 9.5,
+                'position_y' => 74.0,
+                'width'      => 28.0,
+                'height'     => 5.6,
+            ],
+            'date_field'      => [
+                'position_x' => 55.0,
+                'position_y' => 80.0,
+                'width'      => 35.0,
+                'height'     => 3.5,
+            ],
+        ];
+    }
+
+    /**
+     * Ensure default fields exist for a signer when no custom fields were manually placed.
+     * Single source of truth for default field generation across getSigningSession and submitSignerFields.
+     */
+    public static function ensureDefaultFieldsForSigner(int $requestId, int $signerId, array $request): array
+    {
+        $sigFieldModel = new SignatureField();
+        $fields = $sigFieldModel->getBySignerId($signerId);
+
+        if (!empty($fields)) {
+            return $fields;
+        }
+
+        $placement = self::determineDefaultPlacement($request);
+        $finalPage = $placement['page'];
+        $sigCoord = $placement['signature_field'];
+        $dateCoord = $placement['date_field'];
+
+        $sigFieldModel->create([
+            'request_id' => $requestId,
+            'signer_id'  => $signerId,
+            'type'       => 'signature',
+            'page'       => $finalPage,
+            'position_x' => $sigCoord['position_x'],
+            'position_y' => $sigCoord['position_y'],
+            'width'      => $sigCoord['width'],
+            'height'     => $sigCoord['height'],
+            'required'   => 1,
+        ]);
+
+        $sigFieldModel->create([
+            'request_id' => $requestId,
+            'signer_id'  => $signerId,
+            'type'       => 'date',
+            'page'       => $finalPage,
+            'position_x' => $dateCoord['position_x'],
+            'position_y' => $dateCoord['position_y'],
+            'width'      => $dateCoord['width'],
+            'height'     => $dateCoord['height'],
+            'required'   => 0,
+        ]);
+
+        return $sigFieldModel->getBySignerId($signerId);
     }
 
     /**
@@ -401,32 +516,7 @@ class SignatureService
         $sigSignerModel = new SignatureSigner();
         $sigAuditModel = new SignatureAuditEvent();
 
-        $myFields = $sigFieldModel->getBySignerId($signerId);
-        if (empty($myFields)) {
-            $sigFieldModel->create([
-                'request_id' => $requestId,
-                'signer_id'  => $signerId,
-                'type'       => 'signature',
-                'page'       => 1,
-                'position_x' => 9.5,
-                'position_y' => 74.0,
-                'width'      => 28.0,
-                'height'     => 5.6,
-                'required'   => 1,
-            ]);
-            $sigFieldModel->create([
-                'request_id' => $requestId,
-                'signer_id'  => $signerId,
-                'type'       => 'date',
-                'page'       => 1,
-                'position_x' => 55.0,
-                'position_y' => 80.0,
-                'width'      => 35.0,
-                'height'     => 3.5,
-                'required'   => 0,
-            ]);
-            $myFields = $sigFieldModel->getBySignerId($signerId);
-        }
+        $myFields = self::ensureDefaultFieldsForSigner($requestId, $signerId, $request);
 
         $myFieldsById = [];
         $firstSigField = null;
@@ -490,25 +580,12 @@ class SignatureService
                     $customText = trim((string)$val);
                 }
 
-                // Snap coordinates inside Authorized Signature Area on Page 1
-                $subPage = 1;
-                if ($type === 'signature' || $type === 'initial' || $type === 'initials') {
-                    $subX = 9.5;
-                    $subY = 74.0;
-                    $subW = 28.0;
-                    $subH = 5.6;
-                } elseif ($type === 'date') {
-                    $subX = 55.0;
-                    $subY = 80.0;
-                    $subW = 35.0;
-                    $subH = 3.5;
-                } else {
-                    $subPage = !empty($data['page']) ? (int)$data['page'] : ($field['page'] ?? 1);
-                    $subX = isset($data['position_x']) ? (float)$data['position_x'] : ($field['position_x'] ?? null);
-                    $subY = isset($data['position_y']) ? (float)$data['position_y'] : ($field['position_y'] ?? null);
-                    $subW = isset($data['width']) ? (float)$data['width'] : ($field['width'] ?? null);
-                    $subH = isset($data['height']) ? (float)$data['height'] : ($field['height'] ?? null);
-                }
+                // Preserve existing field page and placement coordinates
+                $subPage = !empty($data['page']) ? (int)$data['page'] : (int)($field['page'] ?? 1);
+                $subX = isset($data['position_x']) ? (float)$data['position_x'] : (isset($field['position_x']) ? (float)$field['position_x'] : null);
+                $subY = isset($data['position_y']) ? (float)$data['position_y'] : (isset($field['position_y']) ? (float)$field['position_y'] : null);
+                $subW = isset($data['width']) ? (float)$data['width'] : (isset($field['width']) ? (float)$field['width'] : null);
+                $subH = isset($data['height']) ? (float)$data['height'] : (isset($field['height']) ? (float)$field['height'] : null);
 
                 $sigFieldModel->saveFieldValue($fieldId, $sigData, $sigType, $customText, $subPage, $subX, $subY, $subW, $subH);
             }

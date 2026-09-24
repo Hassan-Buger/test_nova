@@ -240,23 +240,19 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
             }];
         }
 
-        // Align coordinates directly inside the printed "AUTHORIZED SIGNATURE AREA" on Page 1
+        // Normalize coordinates and field metadata
         myFields.forEach(f => {
             const fType = f.type || f.field_type || 'signature';
             f.type = fType;
-            f.page = 1;
+            f.page = parseInt(f.page || f.page_number || 1);
+            f.position_x = (f.position_x !== undefined && f.position_x !== null) ? parseFloat(f.position_x) : 9.5;
+            f.position_y = (f.position_y !== undefined && f.position_y !== null) ? parseFloat(f.position_y) : 74.0;
+            f.width = (f.width !== undefined && f.width !== null) ? parseFloat(f.width) : (fType === 'date' ? 35.0 : 28.0);
+            f.height = (f.height !== undefined && f.height !== null) ? parseFloat(f.height) : (fType === 'date' ? 3.5 : 5.6);
 
             if (fType === 'signature' || fType === 'initial' || fType === 'initials') {
-                f.position_x = 9.5;
-                f.position_y = 74.0;
-                f.width = 28.0;
-                f.height = 5.6;
                 f.required = 1;
             } else if (fType === 'date') {
-                f.position_x = 55.0;
-                f.position_y = 80.0;
-                f.width = 35.0;
-                f.height = 3.5;
                 f.required = 0; // Handled automatically by the system
             } else {
                 f.required = (f.required !== undefined) ? parseInt(f.required) : ((f.is_required !== undefined) ? parseInt(f.is_required) : 1);
@@ -663,7 +659,7 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
                     value: fieldValues[f.id] || ((f.type === 'date') ? presentDateFormatted : ''),
                     type: (f.type || f.field_type || 'signature'),
                     signature_type: (signatureTypes[f.id] || 'drawn'),
-                    page: 1,
+                    page: parseInt(f.page || f.page_number || 1),
                     position_x: f.position_x,
                     position_y: f.position_y,
                     width: f.width,
@@ -697,11 +693,6 @@ $requiredFieldsCount = count($actionableFields) ?: 1;
 
                 const container = document.getElementById('pdfPagesContainer');
                 container.innerHTML = '';
-
-                // Keep fields strictly inside Authorized Signature Area on Page 1
-                myFields.forEach(f => {
-                    f.page = 1;
-                });
 
                 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                     const page = await pdf.getPage(pageNum);

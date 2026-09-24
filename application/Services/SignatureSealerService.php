@@ -177,7 +177,7 @@ class SignatureSealerService
 
                     if (!empty($fieldsByPage[$pageNo])) {
                         foreach ($fieldsByPage[$pageNo] as $field) {
-                            self::stampField($pdf, $field, $pageWidth, $pageHeight, $tempFiles);
+                            self::stampField($pdf, $field, $pageWidth, $pageHeight, $tempFiles, $pageNo, $pageCount);
                         }
                     }
                 }
@@ -273,7 +273,7 @@ class SignatureSealerService
     /**
      * Stamp an individual field onto the active PDF page.
      */
-    private static function stampField(Fpdi $pdf, array $field, float $pageWidth, float $pageHeight, array &$tempFiles): void
+    private static function stampField(Fpdi $pdf, array $field, float $pageWidth, float $pageHeight, array &$tempFiles, int $pageNo = 1, int $pageCount = 1): void
     {
         $x = ((float)$field['position_x'] / 100.0) * $pageWidth;
         $y = ((float)$field['position_y'] / 100.0) * $pageHeight;
@@ -283,8 +283,8 @@ class SignatureSealerService
         $type = $field['field_type'] ?? $field['type'] ?? 'signature';
 
         if ($type === 'signature' || $type === 'initial' || $type === 'initials') {
-            // Guarantee elegant compact dimensions within the Authorized Signature Area
-            if ($y >= 200) {
+            // Guarantee elegant compact dimensions within the Authorized Signature Area on Page 1 of demo template
+            if ($pageCount === 1 && $pageNo === 1 && $y >= 200) {
                 if ($w > 62.0) $w = 58.8; // ~28%
                 if ($h > 18.0) $h = 16.6; // ~5.6%
                 if ($x < 20.0) $x = 20.0; // aligns with text at 20mm
@@ -342,8 +342,8 @@ class SignatureSealerService
                 $dateText = date('d/m/Y');
             }
 
-            // If positioned inside the standard Authorized Signature Area on Page 1
-            if ($y >= 200) {
+            // If positioned inside the standard Authorized Signature Area on Page 1 of single-page demo template
+            if ($pageCount === 1 && $pageNo === 1 && $y >= 200) {
                 // Cover any previous template date cleanly with the signature box background color (#f8fafc)
                 $pdf->SetFillColor(248, 250, 252);
                 $pdf->Rect(100, 238.5, 92, 6.5, 'F');
@@ -354,9 +354,11 @@ class SignatureSealerService
                 $pdf->SetXY(100, 240);
                 $pdf->Cell(80, 5, 'Date: ' . $dateText, 0, 1, 'R');
             } else {
-                $pdf->SetFont('Helvetica', '', 9);
-                $pdf->SetTextColor(71, 85, 105);
-                $pdf->Text($x + 1, $y + ($h * 0.65), $dateText);
+                // Multi-page or custom placement: stamp cleanly at field coordinates
+                $pdf->SetFont('Helvetica', '', 8.5);
+                $pdf->SetTextColor(148, 163, 184); // light grey #94a3b8
+                $pdf->SetXY($x, $y);
+                $pdf->Cell($w, $h, 'Date: ' . $dateText, 0, 0, 'R');
             }
         } elseif ($type === 'name' || $type === 'email' || $type === 'text') {
             $text = (string)($field['field_value'] ?? $field['custom_label'] ?? $field['custom_text'] ?? '');
