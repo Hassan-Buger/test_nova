@@ -32,13 +32,13 @@ $signedDocId = (int)($request['signed_doc_id'] ?? $request['signed_document_id']
                 TriNova Audit Certificate ID: <span class="font-mono text-white font-semibold"><?= htmlspecialchars($qrToken ?? '') ?></span>
             </p>
         </div>
-        <div class="flex-shrink-0 flex flex-col items-start sm:items-end justify-center gap-2.5">
-            <span class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white/10 backdrop-blur border border-white/20 whitespace-nowrap shadow-sm">
+        <div class="flex-shrink-0 flex flex-col items-stretch justify-center gap-2.5 min-w-[185px]">
+            <span class="inline-flex items-center justify-center gap-1.5 px-4 h-10 text-xs sm:text-sm font-bold bg-white/10 backdrop-blur border border-white/20 whitespace-nowrap shadow-sm text-center" style="border-radius: 12px;">
                 <span class="text-slate-300">Status:</span>
                 <span class="text-emerald-300 uppercase tracking-wide"><?= htmlspecialchars($request['status'] ?? 'COMPLETED') ?></span>
             </span>
             <?php if ($signedDocId > 0): ?>
-                <a href="/documents/download/<?= $signedDocId ?>" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-400 hover:bg-emerald-300 text-slate-950 transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 whitespace-nowrap active:translate-y-0">
+                <a href="/documents/download/<?= $signedDocId ?>" class="inline-flex items-center justify-center gap-2 px-4 h-10 text-xs sm:text-sm font-bold bg-emerald-400 hover:bg-emerald-300 text-slate-950 transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 whitespace-nowrap active:translate-y-0 text-center" style="border-radius: 12px;">
                     <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                     </svg>
