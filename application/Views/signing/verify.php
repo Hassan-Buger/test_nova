@@ -17,8 +17,8 @@ $signedDocId = (int)($request['signed_doc_id'] ?? $request['signed_document_id']
 ?>
 <div class="max-w-4xl mx-auto my-10 px-4 animate-fade-in">
     <!-- Header Banner -->
-    <div class="relative overflow-hidden bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl mb-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-        <div class="flex-1 min-w-0 w-full lg:w-auto">
+    <div class="relative overflow-hidden bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div class="flex-1 min-w-0 w-full md:w-auto">
             <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mb-3">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
@@ -32,14 +32,14 @@ $signedDocId = (int)($request['signed_doc_id'] ?? $request['signed_document_id']
                 TriNova Audit Certificate ID: <span class="font-mono text-white font-semibold"><?= htmlspecialchars($qrToken ?? '') ?></span>
             </p>
         </div>
-        <div class="flex-shrink-0 flex flex-wrap items-center gap-3 w-full sm:w-auto justify-start lg:justify-end">
-            <span class="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-white/10 backdrop-blur border border-white/20 whitespace-nowrap shadow-sm">
+        <div class="flex-shrink-0 flex flex-col items-start sm:items-end justify-center gap-2.5">
+            <span class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white/10 backdrop-blur border border-white/20 whitespace-nowrap shadow-sm">
                 <span class="text-slate-300">Status:</span>
                 <span class="text-emerald-300 uppercase tracking-wide"><?= htmlspecialchars($request['status'] ?? 'COMPLETED') ?></span>
             </span>
             <?php if ($signedDocId > 0): ?>
-                <a href="/documents/download/<?= $signedDocId ?>" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-400 hover:bg-emerald-300 text-slate-950 transition-all shadow-md hover:shadow-lg whitespace-nowrap">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <a href="/documents/download/<?= $signedDocId ?>" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-400 hover:bg-emerald-300 text-slate-950 transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 whitespace-nowrap active:translate-y-0">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                     </svg>
                     Download Sealed PDF
