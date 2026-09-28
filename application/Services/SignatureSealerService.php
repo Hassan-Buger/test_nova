@@ -550,16 +550,6 @@ class SignatureSealerService
             $inSignatureBox = ($pageNo === $pageCount && $y >= ($box['y'] - 10.0));
 
             if ($inSignatureBox) {
-                // If source document already contains pre-printed signature box, clean the pre-printed date slot before stamping dynamic date
-                if ($originalFilePath !== '' && self::documentHasSignatureArea($originalFilePath)) {
-                    $pdf->SetFillColor(248, 250, 252);
-                    $cleanW = min(92.0, $box['w'] * 0.5);
-                    $cleanH = 6.5;
-                    $cleanX = $box['x'] + $box['w'] - $cleanW - 2.0;
-                    $cleanY = $box['y'] + $box['h'] - 11.5;
-                    $pdf->Rect($cleanX, $cleanY, $cleanW, $cleanH, 'F');
-                }
-
                 // Stamp dynamic date aligned on the right side of the signature box in muted grey (#94a3b8)
                 $pdf->SetFont('Helvetica', '', 8.0);
                 $pdf->SetTextColor(148, 163, 184); // light grey #94a3b8
@@ -677,7 +667,12 @@ class SignatureSealerService
         $pdf->Text(15, $curY + 4, 'Document Title:');
         $pdf->SetTextColor(15, 23, 42);
         $pdf->SetFont('Helvetica', 'B', 8.5);
-        $pdf->Text(45, $curY + 4, substr((string)$request['title'], 0, 70));
+        $docTitle = (string)$request['title'];
+        while ($pdf->GetStringWidth($docTitle) > 76.0 && mb_strlen($docTitle) > 3) {
+            $docTitle = mb_substr($docTitle, 0, -4) . '...';
+        }
+        $pdf->SetXY(45, $curY + 0.5);
+        $pdf->Cell(76, 5, $docTitle, 0, 0, 'L');
 
         $pdf->SetFont('Helvetica', '', 8.5);
         $pdf->SetTextColor(100, 116, 139);
@@ -693,7 +688,11 @@ class SignatureSealerService
         $pdf->Text(15, $curY + 4, 'Client / Entity:');
         $pdf->SetTextColor(15, 23, 42);
         $clientEntityText = (string)($request['entity_name'] ?? $request['client_name'] ?? 'TriNova Client');
-        $pdf->Text(45, $curY + 4, substr($clientEntityText, 0, 50));
+        while ($pdf->GetStringWidth($clientEntityText) > 76.0 && mb_strlen($clientEntityText) > 3) {
+            $clientEntityText = mb_substr($clientEntityText, 0, -4) . '...';
+        }
+        $pdf->SetXY(45, $curY + 0.5);
+        $pdf->Cell(76, 5, $clientEntityText, 0, 0, 'L');
 
         $pdf->SetTextColor(100, 116, 139);
         $pdf->Text(125, $curY + 4, 'Created Date:');
@@ -735,7 +734,7 @@ class SignatureSealerService
         $pdf->Line(15, $curY, 195, $curY);
 
         $curY += 3;
-        // Signer Table Header
+        // Signer Table Header (Total width = 45 + 25 + 45 + 35 + 30 = 180mm, X: 15 to 195)
         $pdf->SetFillColor(241, 245, 249); // slate-100
         $pdf->SetFont('Helvetica', 'B', 8);
         $pdf->SetTextColor(71, 85, 105);
@@ -750,50 +749,67 @@ class SignatureSealerService
 
         // Render each signer in the certificate table
         foreach ($signers as $signer) {
-            $rowHeight = 18;
-
-            $pdf->SetDrawColor(241, 245, 249);
-            $pdf->Line(15, $curY + $rowHeight, 195, $curY + $rowHeight);
-
-            // Signer Name & Email
+            // Signer Name & Email (Col 1: X=15 to 60, width 45, inner width 42)
             $pdf->SetFont('Helvetica', 'B', 8.5);
             $pdf->SetTextColor(15, 23, 42);
-            $pdf->Text(16, $curY + 5, substr((string)$signer['name'], 0, 24));
+            $pdf->SetXY(16, $curY + 2.0);
+            $pdf->MultiCell(42.0, 4.0, (string)$signer['name'], 0, 'L');
+            $nameEndY = $pdf->GetY();
 
             $pdf->SetFont('Helvetica', '', 7.5);
             $pdf->SetTextColor(100, 116, 139);
-            $pdf->Text(16, $curY + 9, substr((string)$signer['email'], 0, 26));
+            $pdf->SetXY(16, $nameEndY);
+            $pdf->MultiCell(42.0, 3.5, (string)$signer['email'], 0, 'L');
+            $col1EndY = $pdf->GetY();
 
-            // Role & Status Badge
+            // Role & Status Badge (Col 2: X=60 to 85, width 25)
             $pdf->SetFont('Helvetica', 'B', 7.5);
             $pdf->SetTextColor(22, 101, 52); // green-700
-            $pdf->Text(61, $curY + 5, 'SIGNED');
+            $pdf->SetXY(61, $curY + 2.0);
+            $pdf->Cell(23.0, 4.0, 'SIGNED', 0, 1, 'L');
 
             $pdf->SetFont('Helvetica', '', 7.5);
             $pdf->SetTextColor(100, 116, 139);
-            $pdf->Text(61, $curY + 9, ucfirst((string)$signer['role']));
+            $pdf->SetXY(61, $curY + 6.5);
+            $pdf->Cell(23.0, 3.5, ucfirst((string)$signer['role']), 0, 1, 'L');
 
-            // Security & Telemetry
-            $ip = !empty($signer['ip_address']) ? $signer['ip_address'] : 'Recorded';
+            // Security & Telemetry (Col 3: X=85 to 130, width 45, inner width 43)
+            $rawIp = !empty($signer['ip_address']) ? (string)$signer['ip_address'] : 'Recorded';
+            $ips = array_filter(array_map('trim', explode(',', $rawIp)));
+            if (empty($ips)) {
+                $ips = ['Recorded'];
+            }
+
             $pdf->SetFont('Helvetica', '', 7.5);
             $pdf->SetTextColor(51, 65, 85);
-            $pdf->Text(86, $curY + 5, 'IP: ' . $ip);
+            $pdf->SetXY(86, $curY + 2.0);
+            $pdf->Cell(43.0, 3.4, 'IP Address:', 0, 1, 'L');
+
+            foreach ($ips as $ip) {
+                $pdf->SetX(86);
+                $pdf->MultiCell(43.0, 3.2, $ip, 0, 'L');
+            }
+            $ipEndY = $pdf->GetY();
 
             $tokenSnippet = substr((string)($signer['token'] ?? 'verified'), 0, 16) . '...';
             $pdf->SetFont('Courier', '', 6.5);
             $pdf->SetTextColor(148, 163, 184);
-            $pdf->Text(86, $curY + 9, 'Token: ' . $tokenSnippet);
+            $pdf->SetXY(86, $ipEndY + 0.6);
+            $pdf->MultiCell(43.0, 3.0, 'Token: ' . $tokenSnippet, 0, 'L');
+            $col3EndY = $pdf->GetY();
 
-            // Timestamp
+            // Timestamp (Col 4: X=130 to 165, width 35)
             $pdf->SetFont('Helvetica', '', 7.5);
             $pdf->SetTextColor(51, 65, 85);
             $signedTime = !empty($signer['signed_at']) ? $signer['signed_at'] : 'Completed';
-            $pdf->Text(131, $curY + 5, $signedTime);
+            $pdf->SetXY(131, $curY + 2.0);
+            $pdf->Cell(33.0, 4.0, $signedTime, 0, 1, 'L');
 
             $pdf->SetTextColor(148, 163, 184);
-            $pdf->Text(131, $curY + 9, 'Sent: ' . substr((string)($signer['sent_at'] ?? ''), 0, 10));
+            $pdf->SetXY(131, $curY + 6.5);
+            $pdf->Cell(33.0, 3.5, 'Sent: ' . substr((string)($signer['sent_at'] ?? ''), 0, 10), 0, 1, 'L');
 
-            // Thumbnail / Signature stamp from $fields
+            // Thumbnail / Signature stamp from $fields (Col 5: X=165 to 195, width 30)
             $sigField = null;
             foreach ($fields as $sf) {
                 $sfSignerId = (int)($sf['signer_id'] ?? 0);
@@ -805,6 +821,7 @@ class SignatureSealerService
                 }
             }
 
+            $col5EndY = $curY + 15.0;
             if ($sigField) {
                 $sigData = (string)($sigField['field_value'] ?? $sigField['signature_data'] ?? '');
                 $sigType = (string)($sigField['signature_type'] ?? 'drawn');
@@ -816,38 +833,49 @@ class SignatureSealerService
                         file_put_contents($thumbFile, $decoded);
                         $tempFiles[] = $thumbFile;
                         try {
-                            $pdf->Image($thumbFile, 166, $curY + 1, 26, 12);
+                            $pdf->Image($thumbFile, 166, $curY + 1.5, 26, 12);
+                            $col5EndY = $curY + 14.5;
                         } catch (Throwable $e) {
                             $pdf->SetFont('Times', 'I', 9);
-                            $pdf->Text(168, $curY + 8, (string)$signer['name']);
+                            $pdf->SetTextColor(30, 58, 138);
+                            $pdf->SetXY(166, $curY + 6.0);
+                            $pdf->Cell(28.0, 5.0, (string)$signer['name'], 0, 1, 'L');
                         }
                     }
                 } else {
                     $pdf->SetFont('Times', 'I', 10);
                     $pdf->SetTextColor(30, 58, 138);
-                    $pdf->Text(168, $curY + 8, (string)$sigData);
+                    $pdf->SetXY(166, $curY + 6.0);
+                    $pdf->Cell(28.0, 5.0, (string)$sigData, 0, 1, 'L');
                 }
             } else {
                 $pdf->SetFont('Helvetica', 'I', 8);
                 $pdf->SetTextColor(148, 163, 184);
-                $pdf->Text(168, $curY + 8, 'Verified');
+                $pdf->SetXY(166, $curY + 6.0);
+                $pdf->Cell(28.0, 5.0, 'Verified', 0, 1, 'L');
             }
 
-            $curY += $rowHeight + 2;
+            // Calculate dynamic row height so cell expansion grows the row
+            $rowHeight = max(18.0, ($col1EndY - $curY) + 2.0, ($col3EndY - $curY) + 2.0, ($col5EndY - $curY) + 1.0);
+
+            $pdf->SetDrawColor(241, 245, 249);
+            $pdf->Line(15, $curY + $rowHeight, 195, $curY + $rowHeight);
+
+            $curY += $rowHeight + 2.0;
         }
 
         // Audit Trail Timeline Section
-        $curY = max($curY + 5, 175);
+        $curY = max($curY + 4.0, 172.0);
         $pdf->SetFont('Helvetica', 'B', 11);
         $pdf->SetTextColor(15, 23, 42);
         $pdf->SetXY(15, $curY);
         $pdf->Cell(180, 6, 'Cryptographic Audit Events Log', 0, 1, 'L');
 
-        $curY += 7;
+        $curY += 7.0;
         $pdf->SetDrawColor(203, 213, 225);
         $pdf->Line(15, $curY, 195, $curY);
 
-        $curY += 4;
+        $curY += 3.0;
 
         if (empty($auditEvents) && !empty($request['id'])) {
             try {
@@ -858,54 +886,66 @@ class SignatureSealerService
             }
         }
 
-        $pdf->SetFont('Helvetica', '', 7.5);
         $eventsShown = 0;
         foreach ($auditEvents as $event) {
-            if ($eventsShown >= 6) {
-                break; // Keep within certificate bounds
+            if ($curY + 8.0 > 244.0) {
+                break; // Keep within certificate bounds above bottom security box
             }
-            $pdf->SetTextColor(100, 116, 139);
-            $dateStr = !empty($event['created_at']) ? $event['created_at'] . ' UTC' : date('Y-m-d H:i:s') . ' UTC';
-            $pdf->Text(16, $curY + 3.5, $dateStr);
 
+            $dateStr = !empty($event['created_at']) ? $event['created_at'] . ' UTC' : date('Y-m-d H:i:s') . ' UTC';
+            $pdf->SetFont('Helvetica', '', 7.5);
+            $pdf->SetTextColor(100, 116, 139);
+            $pdf->SetXY(15, $curY);
+            $pdf->Cell(38.0, 4.0, $dateStr, 0, 0, 'L');
+
+            $eventType = !empty($event['event_type']) ? strtoupper(str_replace('_', ' ', (string)$event['event_type'])) : 'EXECUTION';
             $pdf->SetFont('Helvetica', 'B', 7.5);
             $pdf->SetTextColor(51, 65, 85);
-            $eventType = !empty($event['event_type']) ? strtoupper(str_replace('_', ' ', (string)$event['event_type'])) : 'EXECUTION';
-            $pdf->Text(55, $curY + 3.5, $eventType);
+            $pdf->SetXY(54, $curY);
+            $pdf->Cell(38.0, 4.0, $eventType, 0, 0, 'L');
 
-            $pdf->SetFont('Helvetica', '', 7.5);
+            $pdf->SetFont('Helvetica', '', 7.2);
             $pdf->SetTextColor(71, 85, 105);
-            $desc = substr((string)($event['description'] ?? $event['event_description'] ?? ''), 0, 75);
+            $desc = (string)($event['description'] ?? $event['event_description'] ?? '');
             if (!empty($event['ip_address'])) {
-                $desc .= ' [IP: ' . $event['ip_address'] . ']';
+                $eventIps = array_filter(array_map('trim', explode(',', (string)$event['ip_address'])));
+                if (!empty($eventIps)) {
+                    $desc .= "\nIP: " . implode(', ', $eventIps);
+                }
             }
-            $pdf->Text(95, $curY + 3.5, $desc);
 
-            $curY += 5.5;
+            // Description wraps within 102mm column, staying strictly within right margin (93 + 102 = 195mm)
+            $pdf->SetXY(93, $curY);
+            $pdf->MultiCell(102.0, 3.4, $desc, 0, 'L');
+            $descEndY = $pdf->GetY();
+
+            $eventHeight = max(5.2, $descEndY - $curY);
+            $curY += $eventHeight + 1.2;
             $eventsShown++;
         }
 
-        // Bottom Security Declaration & Verification Box
+        // Bottom Security Declaration & Verification Box (anchored dynamically at or above Y=246)
+        $boxY = max(246.0, $curY + 2.0);
         $pdf->SetFillColor(248, 250, 252); // slate-50
         $pdf->SetDrawColor(203, 213, 225);
-        $pdf->Rect(15, 245, 180, 36, 'DF');
+        $pdf->Rect(15, $boxY, 180, 36, 'DF');
 
         $pdf->SetFont('Helvetica', 'B', 8.5);
         $pdf->SetTextColor(15, 23, 42);
-        $pdf->SetXY(18, 248);
+        $pdf->SetXY(18, $boxY + 3.0);
         $pdf->Cell(174, 5, 'LEGAL STATEMENT & TAMPER EVIDENCE', 0, 1, 'L');
 
         $pdf->SetFont('Helvetica', '', 7);
         $pdf->SetTextColor(71, 85, 105);
         $legalNotice = "This document was digitally executed and sealed using the TriNova Accounting Client Portal. Each party's signature, timestamp, IP address, and identity have been verified and cryptographically recorded. The underlying document and signatures are permanently sealed. Any alteration to the PDF invalidates this certificate.";
-        $pdf->SetXY(18, 253);
+        $pdf->SetXY(18, $boxY + 8.0);
         $pdf->MultiCell(174, 3.5, $legalNotice, 0, 'L');
 
         // Verification token link
         $verifyToken = (string)($request['qr_token'] ?? '');
         $pdf->SetFont('Helvetica', 'B', 7.5);
         $pdf->SetTextColor(37, 99, 235); // blue-600
-        $pdf->SetXY(18, 269);
+        $pdf->SetXY(18, $boxY + 26.0);
         $pdf->Cell(174, 4, 'Verification ID: ' . $verifyToken . '  |  Verify online: /verify/signature/' . $verifyToken, 0, 1, 'L');
     }
 
