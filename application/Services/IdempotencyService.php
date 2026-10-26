@@ -1,8 +1,8 @@
 <?php
 
-namespace ApplicationServices;
+namespace Application\Services;
 
-use ApplicationCoreDatabase;
+use Application\Core\Database;
 use PDO;
 use Throwable;
 
