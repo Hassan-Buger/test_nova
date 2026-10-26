@@ -1,8 +1,8 @@
 <?php
 
-namespace Application\Services;
+namespace ApplicationServices;
 
-use Application\Core\Database;
+use ApplicationCoreDatabase;
 use PDO;
 use Throwable;
 
@@ -40,7 +40,7 @@ class IdempotencyService
                 ];
             }
         } catch (Throwable $e) {
-            // Non-blocking fallback if table or DB is temporarily unavailable
+            error_log('[TriNova IdempotencyService] get error: ' . $e->getMessage());
         }
 
         return null;
@@ -60,16 +60,18 @@ class IdempotencyService
             return;
         }
 
+        $ttl = max(60, (int)$ttlSeconds);
+
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO api_idempotency_keys 
                     (idempotency_key, request_method, request_path, request_hash, response_status, response_body, created_at, expires_at)
                 VALUES 
-                    (:key, :method, :path, :hash, :status, :body, NOW(), DATE_ADD(NOW(), INTERVAL :ttl SECOND))
+                    (:key, :method, :path, :hash, :status, :body, NOW(), DATE_ADD(NOW(), INTERVAL " . $ttl . " SECOND))
                 ON DUPLICATE KEY UPDATE
                     response_status = VALUES(response_status),
                     response_body = VALUES(response_body),
-                    expires_at = DATE_ADD(NOW(), INTERVAL :ttl SECOND)
+                    expires_at = DATE_ADD(NOW(), INTERVAL " . $ttl . " SECOND)
             ");
             $stmt->execute([
                 'key' => $cleanKey,
@@ -77,11 +79,10 @@ class IdempotencyService
                 'path' => $path,
                 'hash' => $payloadHash,
                 'status' => $statusCode,
-                'body' => json_encode($responseBody, JSON_UNESCAPED_UNICODE),
-                'ttl' => $ttlSeconds
+                'body' => json_encode($responseBody, JSON_UNESCAPED_UNICODE)
             ]);
         } catch (Throwable $e) {
-            // Non-blocking fallback
+            error_log('[TriNova IdempotencyService] save error: ' . $e->getMessage());
         }
     }
 }
