@@ -159,7 +159,8 @@ class TaskApiController
         $description = isset($payload['description']) ? trim((string)$payload['description']) : null;
         $status = strtolower(trim((string)($payload['status'] ?? 'open')));
         if ($status === 'done') $status = 'completed';
-        if (!in_array($status, ['open', 'in_progress', 'completed', 'cancelled'], true)) {
+        if ($status === 'pending') $status = 'open';
+        if (!in_array($status, ['open', 'in_progress', 'under_review', 'completed', 'cancelled'], true)) {
             $status = 'open';
         }
 
@@ -289,7 +290,8 @@ class TaskApiController
         if (array_key_exists('status', $payload)) {
             $status = strtolower(trim((string)$payload['status']));
             if ($status === 'done') $status = 'completed';
-            if (in_array($status, ['open', 'in_progress', 'completed', 'cancelled'], true)) {
+            if ($status === 'pending') $status = 'open';
+            if (in_array($status, ['open', 'in_progress', 'under_review', 'completed', 'cancelled'], true)) {
                 $updates[] = "status = :status";
                 $params['status'] = $status;
             }
