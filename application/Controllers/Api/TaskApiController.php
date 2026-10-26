@@ -2,6 +2,9 @@
 
 namespace Application\Controllers\Api;
 
+require_once __DIR__ . '/../../Services/IdempotencyService.php';
+require_once __DIR__ . '/../../Services/WebhookService.php';
+
 use Application\Core\Database;
 use Application\Core\Request;
 use Application\Core\Response;

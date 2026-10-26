@@ -22,8 +22,8 @@ foreach ([$appDir . '/vendor/autoload.php', $appDir . '/8493files/vendor/autoloa
     }
 }
 
-if (!$autoloadFound) {
-    $basePath = $appDir;
+$basePath = $basePath ?? $appDir;
+    spl_autoload_register(function ($class) use ($appDir) {
     // Built-in PSR-4 autoloader fallback for Application\ namespace
     spl_autoload_register(function ($class) use ($appDir) {
         $prefix = 'Application\\';
