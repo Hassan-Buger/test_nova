@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 // Production-safe bootstrap: diagnostics are logged, never rendered into a
 // user response before the application exception handler is available.
@@ -77,6 +77,8 @@ use Application\Controllers\Api\StatutoryApiController as ApiStatutoryController
 use Application\Controllers\Api\NoteApiController as ApiNoteController;
 use Application\Controllers\Api\DocumentApiController as ApiDocumentController;
 use Application\Controllers\Api\SignatureApiController as ApiSignatureController;
+use Application\Controllers\Api\TaskApiController as ApiTaskController;
+use Application\Controllers\Api\StaffApiController as ApiStaffController;
 
 // Simple dotenv loader fallback for environment variables
 $envFile = $basePath . '/.env';
@@ -261,6 +263,17 @@ $app->router->group([
     $r->get('/companies/{id}/signing-requests', [ApiSignatureController::class, 'listByCompany']);
     $r->post('/companies/{id}/signing-requests', [ApiSignatureController::class, 'create']);
     $r->get('/signatures/{id}/audit', [ApiSignatureController::class, 'audit']);
+
+    // Tasks Two-Way Synchronisation (Sloane ⇄ TriNova)
+    $r->get('/tasks', [ApiTaskController::class, 'index']);
+    $r->post('/tasks', [ApiTaskController::class, 'create']);
+    $r->patch('/tasks/{id}', [ApiTaskController::class, 'update']);
+    $r->post('/tasks/{id}/complete', [ApiTaskController::class, 'complete']);
+    $r->delete('/tasks/{id}', [ApiTaskController::class, 'delete']);
+
+    // Practice Staff Directory (for Task Assignee Matching)
+    $r->get('/staff', [ApiStaffController::class, 'index']);
+    $r->get('/users', [ApiStaffController::class, 'index']);
 });
 
 // Security response headers

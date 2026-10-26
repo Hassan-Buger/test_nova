@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace Application\Core;
 
@@ -113,8 +113,8 @@ class Router
             // Every current {id} route targets an integer controller argument.
             // Restrict it at the routing boundary so named sibling routes such
             // as /clients/import can never be consumed as an ID.
-            $pattern = preg_replace_callback('/\{([a-zA-Z0-9_]+)\}/', static function(array $match): string {
-                $name=$match[1];
+            $pattern = preg_replace_callback('/(?:\{([a-zA-Z0-9_]+)\}|:([a-zA-Z0-9_]+))/', static function(array $match): string {
+                $name = !empty($match[1]) ? $match[1] : $match[2];
                 $valuePattern=$name==='id'?'\\d+':'[a-zA-Z0-9_]+';
                 return '(?P<'.$name.'>'.$valuePattern.')';
             }, $route['path']);

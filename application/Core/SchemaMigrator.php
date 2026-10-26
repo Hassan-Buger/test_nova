@@ -411,6 +411,51 @@ class SchemaMigrator
             INDEX `idx_sig_audit_type` (`event_type`),
             INDEX `idx_sig_audit_created` (`created_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // tasks
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `tasks` (
+            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `client_id` INT UNSIGNED NULL,
+            `title` VARCHAR(255) NOT NULL,
+            `description` TEXT NULL,
+            `status` VARCHAR(50) NOT NULL DEFAULT 'open',
+            `priority` VARCHAR(50) NOT NULL DEFAULT 'medium',
+            `due_date` DATE NULL,
+            `assignee_id` INT UNSIGNED NULL,
+            `department` VARCHAR(80) NULL,
+            `external_ref` VARCHAR(64) NULL,
+            `is_blocked` TINYINT(1) NOT NULL DEFAULT 0,
+            `blocked_reason` TEXT NULL,
+            `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            `deleted_at` DATETIME NULL,
+            INDEX `idx_tasks_client_id` (`client_id`),
+            INDEX `idx_tasks_assignee_id` (`assignee_id`),
+            INDEX `idx_tasks_external_ref` (`external_ref`),
+            INDEX `idx_tasks_updated_at` (`updated_at`),
+            INDEX `idx_tasks_is_deleted` (`is_deleted`),
+            INDEX `idx_tasks_status` (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // api_keys
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `api_keys` (
+            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `name` VARCHAR(100) NOT NULL,
+            `key_token` VARCHAR(128) NOT NULL,
+            `key_hash` VARCHAR(64) NOT NULL UNIQUE,
+            `key_prefix` VARCHAR(16) NOT NULL,
+            `scopes` JSON NOT NULL,
+            `rate_limit_per_minute` INT UNSIGNED NOT NULL DEFAULT 300,
+            `last_used_at` DATETIME NULL,
+            `expires_at` DATETIME NULL,
+            `status` ENUM('active', 'revoked') NOT NULL DEFAULT 'active',
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX `idx_api_keys_hash` (`key_hash`),
+            INDEX `idx_api_keys_token` (`key_token`),
+            INDEX `idx_api_keys_status` (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     }
 
     private static function ensureColumns(PDO $pdo): void
@@ -419,7 +464,7 @@ class SchemaMigrator
         $tablesWithDeletedAt = [
             'users', 'clients', 'client_entities', 'entity_directors',
             'documents', 'document_requests', 'messages', 'deadlines',
-            'meetings', 'client_csv_imports', 'signature_requests'
+            'meetings', 'client_csv_imports', 'signature_requests', 'tasks'
         ];
         foreach ($tablesWithDeletedAt as $table) {
             self::addColumnIfMissing($pdo, $table, 'deleted_at', 'DATETIME NULL');
@@ -476,6 +521,21 @@ class SchemaMigrator
         self::addColumnIfMissing($pdo, 'signature_requests', 'allow_drawn_signature', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER qr_token');
         self::addColumnIfMissing($pdo, 'signature_requests', 'allow_typed_signature', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER allow_drawn_signature');
         self::addColumnIfMissing($pdo, 'signature_requests', 'allow_upload_signature', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER allow_typed_signature');
+
+        // 9. tasks columns
+        self::addColumnIfMissing($pdo, 'tasks', 'department', 'VARCHAR(80) NULL AFTER assignee_id');
+        self::addColumnIfMissing($pdo, 'tasks', 'external_ref', 'VARCHAR(64) NULL AFTER department');
+        self::addColumnIfMissing($pdo, 'tasks', 'is_blocked', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER external_ref');
+        self::addColumnIfMissing($pdo, 'tasks', 'blocked_reason', 'TEXT NULL AFTER is_blocked');
+        self::addColumnIfMissing($pdo, 'tasks', 'is_deleted', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER blocked_reason');
+        self::addColumnIfMissing($pdo, 'tasks', 'deleted_at', 'DATETIME NULL AFTER updated_at');
+
+        // 10. users department column
+        self::addColumnIfMissing($pdo, 'users', 'department', 'VARCHAR(80) NULL AFTER role');
+
+        try {
+            $pdo->exec("ALTER TABLE `tasks` MODIFY COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+        } catch (Throwable $e) {}
     }
 
     private static function ensureIndexes(PDO $pdo): void
@@ -499,6 +559,10 @@ class SchemaMigrator
             ['deadlines', 'idx_deadlines_entity_scope', 'ALTER TABLE `deadlines` ADD INDEX `idx_deadlines_entity_scope` (`entity_id`, `scope`, `due_date`)'],
             ['meetings', 'idx_meetings_deleted_at', 'ALTER TABLE `meetings` ADD INDEX `idx_meetings_deleted_at` (`deleted_at`)'],
             ['client_csv_imports', 'idx_csv_deleted_at', 'ALTER TABLE `client_csv_imports` ADD INDEX `idx_csv_deleted_at` (`deleted_at`)'],
+            ['tasks', 'idx_tasks_external_ref', 'ALTER TABLE `tasks` ADD INDEX `idx_tasks_external_ref` (`external_ref`)'],
+            ['tasks', 'idx_tasks_updated_at', 'ALTER TABLE `tasks` ADD INDEX `idx_tasks_updated_at` (`updated_at`)'],
+            ['tasks', 'idx_tasks_is_deleted', 'ALTER TABLE `tasks` ADD INDEX `idx_tasks_is_deleted` (`is_deleted`)'],
+            ['api_keys', 'idx_api_keys_hash', 'ALTER TABLE `api_keys` ADD INDEX `idx_api_keys_hash` (`key_hash`)'],
         ];
 
         foreach ($indexes as [$table, $indexName, $sql]) {
@@ -558,6 +622,92 @@ class SchemaMigrator
 
             // Backfill scope on deadlines
             $pdo->exec("UPDATE `deadlines` d JOIN `client_entities` e ON e.`id` = d.`entity_id` SET d.`scope` = e.`entity_scope` WHERE d.`scope` IS NULL");
+
+            // Seed API Keys
+            $taskKey = 'tn_live_task_a917b5b6fe95bc24135092490a96585fd07f02b94df4e208a64cd89a94cfeaa5';
+            $taskHash = hash('sha256', $taskKey);
+            $taskScopes = json_encode(['tasks:read', 'tasks:write', 'staff:read']);
+
+            $readKey = 'tn_live_read_babb5e9d064ead09bc3ddf5e28527f987c3aa54e22a4da7b6c2c163a6ab3cf05';
+            $readHash = hash('sha256', $readKey);
+            $readScopes = json_encode(['clients:read', 'statutory:read', 'read']);
+
+            $chatKey = 'tn_sec_live_sloane_readwrite_2026';
+            $chatHash = hash('sha256', $chatKey);
+
+            $stmtKey = $pdo->prepare("
+                INSERT INTO `api_keys` (`name`, `key_token`, `key_hash`, `key_prefix`, `scopes`, `status`)
+                VALUES (:name, :token, :hash, :prefix, :scopes, 'active')
+                ON DUPLICATE KEY UPDATE `key_token` = VALUES(`key_token`), `scopes` = VALUES(`scopes`), `status` = 'active'
+            ");
+            $stmtKey->execute([
+                'name'   => 'Sloane Task Sync Key',
+                'token'  => $taskKey,
+                'hash'   => $taskHash,
+                'prefix' => 'tn_live_task_',
+                'scopes' => $taskScopes
+            ]);
+            $stmtKey->execute([
+                'name'   => 'Sloane Rotated Read Key',
+                'token'  => $readKey,
+                'hash'   => $readHash,
+                'prefix' => 'tn_live_read_',
+                'scopes' => $readScopes
+            ]);
+
+            // Rotate previously exposed chat key (mark revoked)
+            $pdo->prepare("UPDATE `api_keys` SET `status` = 'revoked' WHERE `key_token` = :chatKey OR `key_hash` = :chatHash")
+                ->execute(['chatKey' => $chatKey, 'chatHash' => $chatHash]);
+
+            // Seed initial tasks if tasks table is empty
+            $taskCount = (int)$pdo->query("SELECT COUNT(*) FROM `tasks`")->fetchColumn();
+            if ($taskCount === 0) {
+                $pdo->exec("
+                    INSERT INTO `tasks` (
+                        `client_id`, `title`, `description`, `status`, `priority`,
+                        `due_date`, `assignee_id`, `department`, `external_ref`,
+                        `is_blocked`, `blocked_reason`, `is_deleted`, `created_at`, `updated_at`
+                    ) VALUES
+                    (
+                        5,
+                        'Quarterly VAT Reconciliation Q3',
+                        'Reconcile statutory input and output VAT returns before HMRC deadline.',
+                        'open',
+                        'high',
+                        DATE_ADD(CURRENT_DATE, INTERVAL 10 DAY),
+                        1,
+                        'Tax & Compliance',
+                        'sln_task_vat_001',
+                        0,
+                        NULL,
+                        0,
+                        NOW(),
+                        NOW()
+                    ),
+                    (
+                        6,
+                        'Annual Confirmation Statement CS01 Review',
+                        'Cross-check share registers and PSC filings against Companies House live ledger.',
+                        'in_progress',
+                        'medium',
+                        DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY),
+                        2,
+                        'Accounts & Audit',
+                        'sln_task_cs01_002',
+                        0,
+                        NULL,
+                        0,
+                        NOW(),
+                        NOW()
+                    )
+                ");
+            }
+
+            // Ensure staff users have real portal identities and departments
+            $pdo->exec("UPDATE `users` SET `name` = 'Jane Dean', `email` = 'jane.dean@trinovaaccounting.co.uk', `department` = 'Accounts & Audit' WHERE `id` = 1 AND `email` = 'staff.one@example.invalid'");
+            $pdo->exec("UPDATE `users` SET `name` = 'Kirsty Allen', `email` = 'kirsty.allen@trinovaaccounting.co.uk', `department` = 'Executive & Practice Management' WHERE `id` = 2 AND `email` = 'staff.two@example.invalid'");
+            $pdo->exec("UPDATE `users` SET `name` = 'Emma Dean', `email` = 'emma.dean@trinovaaccounting.co.uk', `department` = 'Tax & Statutory Compliance' WHERE `id` = 3 AND `email` = 'staff.three@example.invalid'");
+            $pdo->exec("UPDATE `users` SET `name` = 'Practice Support', `email` = 'support@trinovaaccounting.co.uk', `department` = 'Client Operations & Bookkeeping' WHERE `id` = 4 AND `email` = 'staff.four@example.invalid'");
         } catch (Throwable $e) {
             error_log('[TriNova SchemaMigrator] Data backfill note: ' . $e->getMessage());
         }
