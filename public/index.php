@@ -22,23 +22,22 @@ foreach ([$appDir . '/vendor/autoload.php', $appDir . '/8493files/vendor/autoloa
     }
 }
 
-$basePath = $basePath ?? $appDir;
-    spl_autoload_register(function ($class) use ($appDir) {
-    // Built-in PSR-4 autoloader fallback for Application\ namespace
-    spl_autoload_register(function ($class) use ($appDir) {
-        $prefix = 'Application\\';
-        $baseDir = $appDir . '/application/';
-        $len = strlen($prefix);
-        if (strncmp($prefix, $class, $len) !== 0) {
-            return;
-        }
-        $relativeClass = substr($class, $len);
-        $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
-        if (file_exists($file)) {
-            require_once $file;
-        }
-    });
-}
+$basePath = $appDir;
+
+// Built-in PSR-4 autoloader fallback for Application\ namespace
+spl_autoload_register(function ($class) use ($appDir) {
+    $prefix = 'Application\\';
+    $baseDir = $appDir . '/application/';
+    $len = strlen($prefix);
+    if (strncmp($prefix, $class, $len) !== 0) {
+        return;
+    }
+    $relativeClass = substr($class, $len);
+    $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+    if (file_exists($file)) {
+        require_once $file;
+    }
+});
 
 use Application\Core\Application;
 use Application\Middleware\AuthMiddleware;
