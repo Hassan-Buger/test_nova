@@ -1,4 +1,4 @@
-﻿-- TriNova Accounting Client Portal Database Schema
+-- TriNova Accounting Client Portal Database Schema
 -- CREATE DATABASE IF NOT EXISTS `trinova_portal`
 --   DEFAULT CHARACTER SET utf8mb4
 --   COLLATE utf8mb4_unicode_ci;

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 // Production-safe bootstrap: diagnostics are logged, never rendered into a
 // user response before the application exception handler is available.

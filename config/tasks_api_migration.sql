@@ -1,4 +1,4 @@
-﻿-- Tasks Two-Way Synchronisation & API Keys Migration
+-- Tasks Two-Way Synchronisation & API Keys Migration
 
 CREATE TABLE IF NOT EXISTS `tasks` (
     `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
