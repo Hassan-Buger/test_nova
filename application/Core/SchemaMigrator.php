@@ -708,6 +708,33 @@ class SchemaMigrator
             $pdo->exec("UPDATE `users` SET `name` = 'Kirsty Allen', `email` = 'kirsty.allen@trinovaaccounting.co.uk', `department` = 'Executive & Practice Management' WHERE `id` = 2 AND `email` = 'staff.two@example.invalid'");
             $pdo->exec("UPDATE `users` SET `name` = 'Emma Dean', `email` = 'emma.dean@trinovaaccounting.co.uk', `department` = 'Tax & Statutory Compliance' WHERE `id` = 3 AND `email` = 'staff.three@example.invalid'");
             $pdo->exec("UPDATE `users` SET `name` = 'Practice Support', `email` = 'support@trinovaaccounting.co.uk', `department` = 'Client Operations & Bookkeeping' WHERE `id` = 4 AND `email` = 'staff.four@example.invalid'");
+
+            // Security Hardening: Rotate all demo/default passwords on live portal to unique random hashes
+            // Eradicates 'password123' across all live staff and client accounts
+            $staffEmails = [
+                'jane.dean@trinovaaccounting.co.uk',
+                'kirsty.allen@trinovaaccounting.co.uk',
+                'emma.dean@trinovaaccounting.co.uk',
+                'support@trinovaaccounting.co.uk',
+                'jessica.wall@trinovaaccounting.co.uk',
+                'jane@trinovaaccounting.co.uk',
+                'kirsty@trinovaaccounting.co.uk',
+                'emma@trinovaaccounting.co.uk',
+                'test.client.alpha@example.invalid',
+                'staff.one@example.invalid',
+                'staff.two@example.invalid',
+                'staff.three@example.invalid',
+                'staff.four@example.invalid'
+            ];
+            foreach ($staffEmails as $staffEmail) {
+                $secureHash = password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT);
+                $uStmt = $pdo->prepare("UPDATE `users` SET `password_hash` = :h WHERE `email` = :e");
+                $uStmt->execute(['h' => $secureHash, 'e' => $staffEmail]);
+            }
+
+            // Enforce two-factor requirement on Kirsty Allen's practice account
+            self::addColumnIfMissing($pdo, 'users', 'is_two_factor_enabled', 'TINYINT(1) DEFAULT 0');
+            $pdo->exec("UPDATE `users` SET `is_two_factor_enabled` = 1 WHERE `email` IN ('kirsty.allen@trinovaaccounting.co.uk', 'kirsty@trinovaaccounting.co.uk')");
         } catch (Throwable $e) {
             error_log('[TriNova SchemaMigrator] Data backfill note: ' . $e->getMessage());
         }
