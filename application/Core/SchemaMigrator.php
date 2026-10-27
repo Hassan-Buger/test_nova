@@ -575,13 +575,12 @@ class SchemaMigrator
         try {
             // Ensure default staff and test client accounts exist with valid password hash ('password123')
             $defaultHash = '$2y$12$uUgV4QcXGo9b9eOEO3/rmuHsKgbwXBm06PfvEgIchptJEsOTFv4ee';
-            $pdo->exec("INSERT INTO `users` (`id`, `name`, `email`, `password_hash`, `role`, `status`) VALUES
+            $pdo->exec("INSERT IGNORE INTO `users` (`id`, `name`, `email`, `password_hash`, `role`, `status`) VALUES
                 (1, 'Test Staff One', 'staff.one@example.invalid', '{$defaultHash}', 'staff', 'active'),
                 (2, 'Test Staff Two', 'staff.two@example.invalid', '{$defaultHash}', 'staff', 'active'),
                 (3, 'Test Staff Three', 'staff.three@example.invalid', '{$defaultHash}', 'staff', 'active'),
                 (4, 'Test Staff Four', 'staff.four@example.invalid', '{$defaultHash}', 'staff', 'active'),
-                (5, 'Test Client Alpha', 'test.client.alpha@example.invalid', '{$defaultHash}', 'client', 'active')
-                ON DUPLICATE KEY UPDATE `password_hash` = VALUES(`password_hash`), `status` = 'active'");
+                (5, 'Test Client Alpha', 'test.client.alpha@example.invalid', '{$defaultHash}', 'client', 'active')");
 
             $pdo->exec("INSERT IGNORE INTO `clients` (`id`, `user_id`, `phone`, `address`, `aml_status`, `notes`) VALUES
                 (1, 5, '07700 900000', '1 Example Street, Exampletown EX1 1AA', 'Complete', 'Fictional test client record. Use for non-production testing only.')");
