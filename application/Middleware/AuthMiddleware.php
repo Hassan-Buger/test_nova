@@ -1,11 +1,11 @@
 <?php
 
-namespace ApplicationMiddleware;
+namespace Application\Middleware;
 
-use ApplicationCoreRequest;
-use ApplicationCoreResponse;
-use ApplicationCoreSession;
-use ApplicationModelsUser;
+use Application\Core\Request;
+use Application\Core\Response;
+use Application\Core\Session;
+use Application\Models\User;
 
 class AuthMiddleware
 {
@@ -13,7 +13,6 @@ class AuthMiddleware
     {
         $userId = (int)Session::get('user_id', 0);
         if ($userId <= 0) {
-            $response->setHeader('X-Auth-Debug', 'no_user_id (session_id=' . session_id() . ')');
             Session::setFlash('error', 'Please sign in to access your portal.');
             $response->redirect('/login');
             return false;
@@ -21,7 +20,6 @@ class AuthMiddleware
 
         $user = (new User())->findById($userId);
         if (!$user) {
-            $response->setHeader('X-Auth-Debug', 'user_not_found_id_' . $userId);
             Session::destroy();
             Session::start();
             Session::setFlash('error', 'User record not found. Please sign in again.');
@@ -30,7 +28,6 @@ class AuthMiddleware
         }
 
         if ($user['status'] !== 'active') {
-            $response->setHeader('X-Auth-Debug', 'user_inactive_' . $user['status']);
             Session::destroy();
             Session::start();
             Session::setFlash('error', 'Account is not active.');
@@ -41,7 +38,6 @@ class AuthMiddleware
         $authHash = hash('sha256', (string)$user['password_hash']);
         $sessionAuthHash = (string)Session::get('auth_hash', '');
         if ($sessionAuthHash !== '' && !hash_equals($sessionAuthHash, $authHash)) {
-            $response->setHeader('X-Auth-Debug', 'hash_mismatch: session=' . substr($sessionAuthHash, 0, 8) . ' vs db=' . substr($authHash, 0, 8));
             Session::destroy();
             Session::start();
             Session::setFlash('error', 'Your account or sign-in credentials changed. Please sign in again.');
