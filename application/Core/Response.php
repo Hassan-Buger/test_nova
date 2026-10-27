@@ -9,8 +9,16 @@ class Response
         http_response_code($code);
     }
 
+    public function setHeader(string $name, string $value): void
+    {
+        header("$name: $value");
+    }
+
     public function redirect(string $url): void
     {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
         header("Location: $url");
         exit;
     }
