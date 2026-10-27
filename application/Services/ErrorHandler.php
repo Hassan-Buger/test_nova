@@ -16,6 +16,7 @@ final class ErrorHandler
     public static function handle(\Throwable $error,Request $request,Response $response): void
     {
         self::report($error,$request);
+        @header("X-Exception-Debug: " . rawurlencode($error->getMessage() . " in " . $error->getFile() . ":" . $error->getLine()));
         if (str_starts_with($request->getUri(), '/api/v1')) {
             header('Access-Control-Allow-Origin: *');
             header('Access-Control-Allow-Methods: GET, POST, PATCH, DELETE, OPTIONS');
