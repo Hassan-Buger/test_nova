@@ -713,8 +713,8 @@ class SchemaMigrator
             $pdo->exec("DELETE FROM tasks WHERE external_ref LIKE 'tsk_test%' OR title LIKE '%TEST%' OR title LIKE '%Live Task Verification%' OR is_deleted = 1");
 
             // Set known secure password for staff portal access and clear any lockouts
+            // Critical: Only update password_hash if it doesn't already verify, to prevent regenerating bcrypt salts on every request
             $knownPassword = 'Trinova2026!';
-            $knownHash = password_hash($knownPassword, PASSWORD_BCRYPT);
             $staffEmails = [
                 'jane.dean@trinovaaccounting.co.uk',
                 'kirsty.allen@trinovaaccounting.co.uk',
@@ -731,11 +731,22 @@ class SchemaMigrator
                 'staff.four@example.invalid'
             ];
             foreach ($staffEmails as $staffEmail) {
-                $uStmt = $pdo->prepare("UPDATE `users` SET `password_hash` = :h, `failed_login_attempts` = 0, `locked_until` = NULL, `status` = 'active' WHERE `email` = :e");
-                $uStmt->execute(['h' => $knownHash, 'e' => $staffEmail]);
+                $sStmt = $pdo->prepare("SELECT id, password_hash, failed_login_attempts, locked_until, status FROM `users` WHERE `email` = :e LIMIT 1");
+                $sStmt->execute(['e' => $staffEmail]);
+                $userRow = $sStmt->fetch(PDO::FETCH_ASSOC);
+                if ($userRow) {
+                    if (empty($userRow['password_hash']) || !password_verify($knownPassword, $userRow['password_hash'])) {
+                        $newHash = password_hash($knownPassword, PASSWORD_BCRYPT);
+                        $uStmt = $pdo->prepare("UPDATE `users` SET `password_hash` = :h, `failed_login_attempts` = 0, `locked_until` = NULL, `status` = 'active' WHERE `id` = :id");
+                        $uStmt->execute(['h' => $newHash, 'id' => $userRow['id']]);
+                    } elseif ($userRow['failed_login_attempts'] > 0 || $userRow['locked_until'] !== null || $userRow['status'] !== 'active') {
+                        $uStmt = $pdo->prepare("UPDATE `users` SET `failed_login_attempts` = 0, `locked_until` = NULL, `status` = 'active' WHERE `id` = :id");
+                        $uStmt->execute(['id' => $userRow['id']]);
+                    }
+                }
             }
-            $pdo->prepare("UPDATE `users` SET `password_hash` = :h, `failed_login_attempts` = 0, `locked_until` = NULL, `status` = 'active' WHERE `role` = 'staff'")
-                ->execute(['h' => $knownHash]);
+            // Unlock any other staff members without touching their stable password hash
+            $pdo->exec("UPDATE `users` SET `failed_login_attempts` = 0, `locked_until` = NULL, `status` = 'active' WHERE `role` = 'staff' AND (`failed_login_attempts` > 0 OR `locked_until` IS NOT NULL OR `status` != 'active')");
 
             // Enforce two-factor requirement on Kirsty Allen's practice account
             self::addColumnIfMissing($pdo, 'users', 'is_two_factor_enabled', 'TINYINT(1) DEFAULT 0');
