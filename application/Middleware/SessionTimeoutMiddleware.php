@@ -15,6 +15,7 @@ class SessionTimeoutMiddleware
         $timeoutSeconds = App::get('session_timeout', 900);
 
         if ($lastActivity && (time() - $lastActivity > $timeoutSeconds)) {
+            $response->setHeader('X-Auth-Debug', 'timeout:last=' . $lastActivity . ',now=' . time());
             Session::destroy();
             Session::start();
             Session::setFlash('error', 'Your session has expired due to inactivity. Please sign in again.');
