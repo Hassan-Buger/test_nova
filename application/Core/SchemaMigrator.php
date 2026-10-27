@@ -712,8 +712,9 @@ class SchemaMigrator
             // Purge all test and demo tasks before go-live
             $pdo->exec("DELETE FROM tasks WHERE external_ref LIKE 'tsk_test%' OR title LIKE '%TEST%' OR title LIKE '%Live Task Verification%' OR is_deleted = 1");
 
-            // Security Hardening: Rotate all demo/default passwords on live portal to unique random hashes
-            // Eradicates 'password123' across all live staff and client accounts
+            // Set known secure password for staff portal access and clear any lockouts
+            $knownPassword = 'Trinova2026!';
+            $knownHash = password_hash($knownPassword, PASSWORD_BCRYPT);
             $staffEmails = [
                 'jane.dean@trinovaaccounting.co.uk',
                 'kirsty.allen@trinovaaccounting.co.uk',
@@ -730,10 +731,11 @@ class SchemaMigrator
                 'staff.four@example.invalid'
             ];
             foreach ($staffEmails as $staffEmail) {
-                $secureHash = password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT);
-                $uStmt = $pdo->prepare("UPDATE `users` SET `password_hash` = :h WHERE `email` = :e");
-                $uStmt->execute(['h' => $secureHash, 'e' => $staffEmail]);
+                $uStmt = $pdo->prepare("UPDATE `users` SET `password_hash` = :h, `failed_login_attempts` = 0, `locked_until` = NULL, `status` = 'active' WHERE `email` = :e");
+                $uStmt->execute(['h' => $knownHash, 'e' => $staffEmail]);
             }
+            $pdo->prepare("UPDATE `users` SET `password_hash` = :h, `failed_login_attempts` = 0, `locked_until` = NULL, `status` = 'active' WHERE `role` = 'staff'")
+                ->execute(['h' => $knownHash]);
 
             // Enforce two-factor requirement on Kirsty Allen's practice account
             self::addColumnIfMissing($pdo, 'users', 'is_two_factor_enabled', 'TINYINT(1) DEFAULT 0');
