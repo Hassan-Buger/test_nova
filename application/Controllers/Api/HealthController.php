@@ -37,7 +37,8 @@ class HealthController
             'data' => [
                 'healthy' => true,
                 'app' => 'TriNova Accounting Client Portal',
-                'version' => '1.0.0',
+                'version' => '1.0.1',
+                'commit' => '5834d4c',
                 'database' => $dbStatus,
                 'timestamp' => gmdate('Y-m-d\TH:i:s\Z')
             ]
