@@ -174,6 +174,26 @@ class TaskApiController
         $assigneeId = !empty($payload['assignee_id']) ? (int)$payload['assignee_id'] : null;
         $department = isset($payload['department']) ? trim((string)$payload['department']) : null;
         $externalRef = isset($payload['external_ref']) ? trim((string)$payload['external_ref']) : null;
+        if ($externalRef === '') {
+            $externalRef = null;
+        }
+
+        // Uniqueness & Deduplication by external_ref: return existing task if already present
+        if ($externalRef !== null) {
+            $existingRefStmt = $this->db->prepare("SELECT id FROM tasks WHERE external_ref = :ref AND is_deleted = 0 LIMIT 1");
+            $existingRefStmt->execute(['ref' => $externalRef]);
+            $existingId = $existingRefStmt->fetchColumn();
+            if ($existingId) {
+                $existingTask = $this->findTaskById((int)$existingId);
+                if ($existingTask) {
+                    $response->json([
+                        'status' => 'success',
+                        'data'   => $this->formatTaskRecord($existingTask)
+                    ], 200);
+                    return;
+                }
+            }
+        }
         $isBlocked = !empty($payload['is_blocked']) ? 1 : 0;
         $blockedReason = isset($payload['blocked_reason']) ? trim((string)$payload['blocked_reason']) : null;
         $isDeleted = !empty($payload['is_deleted']) ? 1 : 0;

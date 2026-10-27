@@ -709,6 +709,9 @@ class SchemaMigrator
             $pdo->exec("UPDATE `users` SET `name` = 'Emma Dean', `email` = 'emma.dean@trinovaaccounting.co.uk', `department` = 'Tax & Statutory Compliance' WHERE `id` = 3 AND `email` = 'staff.three@example.invalid'");
             $pdo->exec("UPDATE `users` SET `name` = 'Practice Support', `email` = 'support@trinovaaccounting.co.uk', `department` = 'Client Operations & Bookkeeping' WHERE `id` = 4 AND `email` = 'staff.four@example.invalid'");
 
+            // Purge all test and demo tasks before go-live
+            $pdo->exec("DELETE FROM tasks WHERE external_ref LIKE 'tsk_test%' OR title LIKE '%TEST%' OR title LIKE '%Live Task Verification%' OR is_deleted = 1");
+
             // Security Hardening: Rotate all demo/default passwords on live portal to unique random hashes
             // Eradicates 'password123' across all live staff and client accounts
             $staffEmails = [
